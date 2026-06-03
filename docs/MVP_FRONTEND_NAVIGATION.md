@@ -162,18 +162,20 @@ Dashboard is the entry page and summary hub. It should answer: "What needs my at
 ```text
 Dashboard
 ├── Header
-│   ├── Title / greeting
+│   ├── Total Net Worth primary value
+│   ├── Change vs yesterday, amount and percentage
+│   ├── Goal progress, such as FIRE / $145.3K of $1.5M / progress bar
 │   ├── Current period
-│   ├── Data sync or local-first status
-│   └── Quick action, such as Add data
+│   ├── Data status chips
+│   └── Primary action, such as Add data
 │
 ├── KPI Cards
-│   ├── Net Worth
-│   ├── Cash Available
-│   ├── Monthly Spending
-│   ├── Cashflow Risk
+│   ├── Cash
 │   ├── Investments
-│   └── Recurring Costs
+│   ├── Spending
+│   ├── Accounts
+│   ├── Recap
+│   └── Risk
 │
 ├── Main Area
 │   ├── Net Worth Trend
@@ -181,8 +183,8 @@ Dashboard
 │
 ├── Secondary Panels
 │   ├── Cashflow Forecast Preview
-│   ├── Category Budget Use
-│   └── Recurring Watchlist
+│   ├── Spending Insight Preview
+│   └── Recap / Goal Progress Preview
 │
 └── Quick Actions
     ├── Import CSV
@@ -191,18 +193,41 @@ Dashboard
     └── Review Transactions
 ```
 
-### 7.2 Dashboard KPI cards
+### 7.2 Dashboard header
+
+The Dashboard header is the first visual focus. It should promote Total Net Worth above the generic page title.
+
+| Element | Displays | Click target | Notes |
+|---|---|---|---|
+| Total Net Worth | Current total net worth. | `/investments` or future `/net-worth`. | MVP can use accounts-only net worth until holdings and valuation are implemented. Label the source clearly. |
+| Change vs yesterday | Absolute amount and percentage, such as `+$1,182.30 · +0.82% vs yesterday`. | Same as Total Net Worth. | If previous-day data is unavailable, show `No previous day data` instead of `0.00%`. |
+| Goal progress | User-configured goal name and target, such as `FIRE`, `$145.3K / $1.5M`, and a progress bar. | `/settings?section=goals`. | Default current value is Total Net Worth. If the user configures a scoped goal, such as an investment goal, use that scoped value instead. |
+| Current period | Current month or reporting period, such as `Jun 2026`. | Future period selector. | Keep as display-only for the first implementation. |
+| Data status chips | Local-first, Mock SimpleFIN, updated/stale/sync issue states. | `/accounts`. | Status details belong on Accounts. |
+| Primary action | `Add data`. | Add-data menu or first supported target. | Menu items can include Import CSV, Add manual account, Add holding, and Connect SimpleFIN. |
+
+When no user goal is configured, the goal area should show a setup state:
+
+```text
+Set a financial goal
+Track progress toward FIRE, down payment, or emergency fund.
+Set goal -> /settings?section=goals
+```
+
+### 7.3 Dashboard KPI cards
+
+Total Net Worth belongs in the header, so KPI cards should not duplicate it. Recurring costs and spending insights are integrated into Spending instead of being first-level cards.
 
 | KPI | Displays | Click target | Notes |
 |---|---|---|---|
-| Net Worth | Current net worth and period change. | `/investments` or future `/net-worth`. | Until investments are implemented, label as accounts-only or estimated. |
-| Cash Available | Checking + savings + cash balance. | `/cash`. | Add runway or risk badge when available. |
-| Monthly Spending | Current month spending and budget usage. | `/spending`. | Color by budget usage thresholds. |
-| Cashflow Risk | Highest 30/60/90 day risk level. | `/cash`. | Derived from forecast points. |
-| Investments | Portfolio return or setup CTA. | `/investments`. | Show "Add holdings" while investment tracking is deferred. |
-| Recurring Costs | Monthly recurring total and detected count. | `/spending?section=recurring`. | Include annualized cost when space allows. |
+| Cash | Available cash, short-term liquidity, or next cash event. | `/cash`. | Use checking + savings + cash as the MVP value. |
+| Investments | Portfolio value/return or setup CTA. | `/investments`. | Show `Add holdings` while investment tracking is deferred. |
+| Spending | Current month spending and budget usage. | `/spending`. | Recurring costs and spending insights are summarized here and expanded on Spending. |
+| Accounts | Connected/manual account count, sync health, or data freshness. | `/accounts`. | This also supports data status chip details. |
+| Recap | Latest monthly/quarterly recap status. | `/recap`. | Show `May recap ready` when enough period data exists. |
+| Risk | Highest priority risk, such as cashflow, budget, sync, or review risk. | Risk-specific target, usually `/cash`, `/spending`, `/accounts`, or `/transactions?review=true`. | Keep final naming and risk composition open until alert generation is implemented. |
 
-### 7.3 Dashboard alerts and next actions
+### 7.4 Dashboard alerts and next actions
 
 Dashboard should show a prioritized feed of actionable items:
 
@@ -215,27 +240,28 @@ Dashboard should show a prioritized feed of actionable items:
 | Data issue | SimpleFIN sync failed or data is stale. | `/accounts` |
 | Recap ready | May recap is ready. | `/recap?period=2026-05` |
 | Investment setup | Add holdings to complete net worth. | `/investments` |
+| Goal setup | Set a FIRE, emergency fund, or down payment goal. | `/settings?section=goals` |
 
 Priority order should be critical, warning, review, informational, and success.
 
-### 7.4 Dashboard secondary panels
+### 7.5 Dashboard secondary panels
 
 | Panel | Purpose | Interactions |
 |---|---|---|
 | Net Worth Trend | Long-term financial health trend. | Range switch updates chart; details link opens investments or net-worth page. |
 | Cashflow Forecast Preview | 30/60/90 day projected cash balance and risk. | Details link opens `/cash`. |
-| Category Budget Use | Top categories and budget usage. | Category row opens `/spending?category=...`. |
-| Recurring Watchlist | Upcoming recurring costs and subscriptions. | Merchant row opens `/transactions?merchant=...`. |
+| Spending Insight Preview | Budget usage, top category, recurring summary, and spending insight preview. | Opens `/spending` or `/spending?category=...`. |
+| Recap / Goal Progress Preview | Recap readiness or goal milestone context. | Opens `/recap` or `/settings?section=goals`. |
 
-### 7.5 Dashboard first implementation scope
+### 7.6 Dashboard first implementation scope
 
 Implement first:
 
-1. Six KPI cards.
-2. Net-worth trend with explicit source/estimation label.
-3. Alert / next-action feed.
-4. Cashflow forecast preview.
-5. Clickable category and recurring rows.
+1. Header with Total Net Worth as the primary visual, absolute and percentage change vs yesterday, goal progress, current period, data status chips, and Add data action.
+2. Six KPI cards: Cash, Investments, Spending, Accounts, Recap, and Risk.
+3. Net-worth trend with explicit source/estimation label.
+4. Alert / next-action feed.
+5. Cashflow forecast preview and Spending insight preview.
 6. Quick actions for import CSV, add account, add holding, and review transactions.
 
 Defer:

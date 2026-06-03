@@ -2392,14 +2392,15 @@ VFV.TO 使用上一交易日价格估值。
 
 模块：
 
-1. Net Worth Summary；
-2. Cash Position；
-3. Monthly Spending；
-4. Investment Performance；
-5. Credit Card & Debt；
-6. Recurring Costs；
-7. Forecast；
-8. AI Insight。
+1. Header Total Net Worth Summary：总资产价值、较昨日变化金额和百分比；
+2. Goal Progress：用户自定义目标名和金额，例如 FIRE，并以进度条展示完成度；
+3. Cash KPI；
+4. Investments KPI；
+5. Spending KPI；
+6. Accounts KPI；
+7. Recap KPI；
+8. Risk KPI；
+9. Forecast / Insight preview。
 
 ### 11.3 Investments 页面
 
@@ -2482,24 +2483,24 @@ Settings         /settings
 
 Dashboard 第一版建议包含：
 
-1. Header：当前周期、数据同步/Local-first 状态、Add data 快捷入口；
-2. KPI Cards：Net Worth、Cash Available、Monthly Spending、Cashflow Risk、Investments、Recurring Costs；
+1. Header：以 Total Net Worth 作为第一视觉焦点，同时展示较昨日变化的金额和百分比、用户目标进度（例如 FIRE 目标名、目标金额和进度条）、当前周期、数据状态 chip、Add data 快捷入口；
+2. KPI Cards：Cash、Investments、Spending、Accounts、Recap、Risk（Risk 的最终口径待 alerts/risk 生成逻辑确定）；
 3. Main Area：Net Worth Trend + Alerts / Next Actions；
-4. Secondary Panels：Cashflow Forecast Preview、Category Budget Use、Recurring Watchlist；
+4. Secondary Panels：Cashflow Forecast Preview、Spending Insight Preview、Recap / Goal Progress Preview；
 5. Quick Actions：Import CSV、Add Account、Add Holding、Review Transactions。
 
 Dashboard 点击跳转示例：
 
 | Dashboard 元素 | 跳转 |
 |---|---|
-| Cash Available / Cashflow Risk | `/cash` |
-| Monthly Spending | `/spending` |
-| Category Budget Use | `/spending?category=...` |
-| Recurring Costs | `/spending?section=recurring` |
-| Investment CTA | `/investments` |
-| Review Needed | `/transactions?review=true` |
-| Data Health | `/accounts` |
-| Recap Ready | `/recap?period=...` |
+| Total Net Worth | `/investments`，未来可跳 `/net-worth` |
+| Goal Progress | `/settings?section=goals` |
+| Cash KPI | `/cash` |
+| Investments KPI | `/investments` |
+| Spending KPI | `/spending` |
+| Accounts KPI / Data Status | `/accounts` |
+| Recap KPI | `/recap?period=...` |
+| Risk KPI | 根据最高优先级风险跳 `/cash`、`/spending`、`/accounts` 或 `/transactions?review=true` |
 
 ## 12. MVP 开发路线
 
