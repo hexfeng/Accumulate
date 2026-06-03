@@ -2427,6 +2427,80 @@ VFV.TO 使用上一交易日价格估值。
 
 ---
 
+
+## 11.1 MVP Frontend Information Architecture
+
+当前前端 MVP 以 **Dashboard 作为首页入口和跨页面跳转中枢**。专题页负责深度分析，Transactions 页面作为所有分析的底层明细与数据修正中心。详细页面导航、跳转规则和 Dashboard 第一版规格维护在 `docs/MVP_FRONTEND_NAVIGATION.md`。
+
+### 11.1.1 侧边栏与核心路由
+
+```text
+Dashboard        /dashboard
+Cash             /cash
+Spending         /spending
+Investments      /investments
+Recap            /recap
+Transactions     /transactions
+Accounts         /accounts
+Settings         /settings
+```
+
+### 11.1.2 页面职责
+
+| 页面 | 核心问题 | 职责 |
+|---|---|---|
+| Dashboard | 我现在整体财务健康吗？ | KPI 汇总、净资产趋势、风险提醒、下一步行动、跨页面入口 |
+| Cash | 我短期现金够不够？ | 现金账户、信用卡短期负债、未来付款、30/60/90 天现金流风险 |
+| Spending | 我这个月钱花在哪里？ | 收入/支出、预算、分类、商户、周期费用、消费 insight |
+| Investments | 我的资产表现如何？ | 持仓、组合市值、收益、资产配置、多币种和 FX 暴露 |
+| Recap | 这个月/季度发生了什么？ | 月度/季度/年度总结、显著变化、风险、行动建议 |
+| Transactions | 底层交易数据是否正确？ | 搜索、筛选、分类修正、排除、转账标记、本地规则生成 |
+| Accounts | 数据源是否健康？ | 连接账户、手动账户、同步状态、source/last updated/confidence |
+| Settings | 系统如何解释我的数据？ | 预算、分类规则、预测假设、币种、时区、隐私和 AI 模式 |
+
+### 11.1.3 跳转原则
+
+```text
+/ -> /dashboard
+
+/dashboard
+├── /cash
+├── /spending
+├── /investments
+├── /recap
+├── /transactions
+├── /accounts
+└── /settings
+```
+
+- Dashboard 只展示摘要、风险和下一步行动，不承载所有细节。
+- Cash、Spending、Investments、Recap 等专题页负责分析。
+- Transactions 负责 drill-down、数据修正和分类规则创建。
+- 页面跳转通过 query 参数保留上下文，例如 `period=2026-05`、`category=Dining`、`merchant=Netflix`、`account=cibc-visa`、`review=true`、`section=recurring`。
+
+### 11.1.4 Dashboard 第一版范围
+
+Dashboard 第一版建议包含：
+
+1. Header：当前周期、数据同步/Local-first 状态、Add data 快捷入口；
+2. KPI Cards：Net Worth、Cash Available、Monthly Spending、Cashflow Risk、Investments、Recurring Costs；
+3. Main Area：Net Worth Trend + Alerts / Next Actions；
+4. Secondary Panels：Cashflow Forecast Preview、Category Budget Use、Recurring Watchlist；
+5. Quick Actions：Import CSV、Add Account、Add Holding、Review Transactions。
+
+Dashboard 点击跳转示例：
+
+| Dashboard 元素 | 跳转 |
+|---|---|
+| Cash Available / Cashflow Risk | `/cash` |
+| Monthly Spending | `/spending` |
+| Category Budget Use | `/spending?category=...` |
+| Recurring Costs | `/spending?section=recurring` |
+| Investment CTA | `/investments` |
+| Review Needed | `/transactions?review=true` |
+| Data Health | `/accounts` |
+| Recap Ready | `/recap?period=...` |
+
 ## 12. MVP 开发路线
 
 ### Phase 0：Foundation
@@ -2556,11 +2630,13 @@ VFV.TO 使用上一交易日价格估值。
 
 ## 17. 下一步建议
 
-建议下一步直接拆成三份工程交付物：
+建议下一步直接拆成四份工程交付物：
 
-1. **MVP Backlog**
+1. **MVP Frontend Navigation**
+   - 维护在 `docs/MVP_FRONTEND_NAVIGATION.md`，用于沉淀侧边栏、路由、页面职责、Dashboard 规格和跨页面 drill-down 规则；
+2. **MVP Backlog**
    - 按 Epic / Feature / User Story / Acceptance Criteria 拆解；
-2. **Database ERD**
+3. **Database ERD**
    - 明确表关系、索引、数据流；
-3. **Dashboard Wireframe**
-   - 首页、消费页、投资页、订阅页、预测页的页面结构。
+4. **Dashboard Wireframe**
+   - 首页、Cash、Spending、Investments、Recap、Transactions、Accounts、Settings 的页面结构。
