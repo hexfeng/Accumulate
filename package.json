@@ -1,0 +1,16 @@
+{
+  "name": "finsight",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/web"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace @finsight/web",
+    "dev:api": "uvicorn app.main:app --reload --app-dir apps/api",
+    "test:api": "python -m pytest apps/api/tests",
+    "test:web": "npm run test --workspace @finsight/web",
+    "build:web": "npm run build --workspace @finsight/web",
+    "test": "npm run test:api && npm run test:web"
+  }
+}
