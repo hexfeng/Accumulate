@@ -2484,10 +2484,10 @@ Settings         /settings
 Dashboard 第一版建议包含：
 
 1. Header：以 Total Net Worth 作为第一视觉焦点，同时展示较昨日变化的金额和百分比、用户目标进度（例如 FIRE 目标名、目标金额和进度条）、当前周期、数据状态 chip、Add data 快捷入口；
-2. KPI Cards：Cash、Investments、Spending、Accounts、Recap、Risk（Risk 的最终口径待 alerts/risk 生成逻辑确定）；
-3. Main Area：Net Worth Trend + Alerts / Next Actions；
-4. Secondary Panels：Cashflow Forecast Preview、Spending Insight Preview、Recap / Goal Progress Preview；
-5. Quick Actions：Import CSV、Add Account、Add Holding、Review Transactions。
+2. KPI Navigation Cards：Cash、Investments、Spending、Accounts、Recap、Risk（Risk 的最终口径待 alerts/risk 生成逻辑确定）；
+3. Main Content Grid：桌面端使用 Net Worth Trend + Needs Attention 左右布局，移动端将 Needs Attention 放在 Trend 前方；
+4. Secondary Insight Row：Cashflow Forecast Preview、Spending Insight Preview、Recap / Goal Progress Preview；
+5. Quick Actions：优先通过 Header Add data 菜单和 Needs Attention 承载；只有空数据或 onboarding 状态才强展示大号快捷操作区。
 
 Dashboard 点击跳转示例：
 

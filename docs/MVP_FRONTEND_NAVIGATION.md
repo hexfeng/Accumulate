@@ -193,7 +193,21 @@ Dashboard
     └── Review Transactions
 ```
 
-### 7.2 Dashboard header
+### 7.2 Confirmed Dashboard body layout
+
+The confirmed layout below the Total Net Worth header is:
+
+```text
+Header
+KPI Navigation Cards: Cash / Investments / Spending / Accounts / Recap / Risk
+Main Content Grid: Net Worth Trend + Needs Attention
+Secondary Insight Row: Cashflow Forecast / Spending Insight / Recap or Goal
+Add-data and review actions: header menu first, larger empty-state actions only when needed
+```
+
+Desktop should use a six-card KPI row when width allows, then a two-column main grid with Net Worth Trend on the left and Needs Attention on the right. The secondary insight row should use three equal cards. On mobile, the order should be Header, KPI cards, Needs Attention, Net Worth Trend, Cashflow Forecast, Spending Insight, then Recap / Goal so urgent actions remain visible before detailed charts.
+
+### 7.3 Dashboard header
 
 The Dashboard header is the first visual focus. It should promote Total Net Worth above the generic page title.
 
@@ -214,7 +228,7 @@ Track progress toward FIRE, down payment, or emergency fund.
 Set goal -> /settings?section=goals
 ```
 
-### 7.3 Dashboard KPI cards
+### 7.4 Dashboard KPI cards
 
 Total Net Worth belongs in the header, so KPI cards should not duplicate it. Recurring costs and spending insights are integrated into Spending instead of being first-level cards.
 
@@ -227,7 +241,7 @@ Total Net Worth belongs in the header, so KPI cards should not duplicate it. Rec
 | Recap | Latest monthly/quarterly recap status. | `/recap`. | Show `May recap ready` when enough period data exists. |
 | Risk | Highest priority risk, such as cashflow, budget, sync, or review risk. | Risk-specific target, usually `/cash`, `/spending`, `/accounts`, or `/transactions?review=true`. | Keep final naming and risk composition open until alert generation is implemented. |
 
-### 7.4 Dashboard alerts and next actions
+### 7.5 Dashboard alerts and next actions
 
 Dashboard should show a prioritized feed of actionable items:
 
@@ -244,7 +258,7 @@ Dashboard should show a prioritized feed of actionable items:
 
 Priority order should be critical, warning, review, informational, and success.
 
-### 7.5 Dashboard secondary panels
+### 7.6 Dashboard secondary panels
 
 | Panel | Purpose | Interactions |
 |---|---|---|
@@ -253,7 +267,7 @@ Priority order should be critical, warning, review, informational, and success.
 | Spending Insight Preview | Budget usage, top category, recurring summary, and spending insight preview. | Opens `/spending` or `/spending?category=...`. |
 | Recap / Goal Progress Preview | Recap readiness or goal milestone context. | Opens `/recap` or `/settings?section=goals`. |
 
-### 7.6 Dashboard first implementation scope
+### 7.7 Dashboard first implementation scope
 
 Implement first:
 
