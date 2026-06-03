@@ -2392,14 +2392,15 @@ VFV.TO 使用上一交易日价格估值。
 
 模块：
 
-1. Net Worth Summary；
-2. Cash Position；
-3. Monthly Spending；
-4. Investment Performance；
-5. Credit Card & Debt；
-6. Recurring Costs；
-7. Forecast；
-8. AI Insight。
+1. Header Total Net Worth Summary：总资产价值、较昨日变化金额和百分比；
+2. Goal Progress：用户自定义目标名和金额，例如 FIRE，并以进度条展示完成度；
+3. Cash KPI；
+4. Investments KPI；
+5. Spending KPI；
+6. Accounts KPI；
+7. Recap KPI；
+8. Risk KPI；
+9. Forecast / Insight preview。
 
 ### 11.3 Investments 页面
 
@@ -2426,6 +2427,80 @@ VFV.TO 使用上一交易日价格估值。
 6. Unusual Transactions。
 
 ---
+
+
+## 11.1 MVP Frontend Information Architecture
+
+当前前端 MVP 以 **Dashboard 作为首页入口和跨页面跳转中枢**。专题页负责深度分析，Transactions 页面作为所有分析的底层明细与数据修正中心。详细页面导航、跳转规则和 Dashboard 第一版规格维护在 `docs/MVP_FRONTEND_NAVIGATION.md`。
+
+### 11.1.1 侧边栏与核心路由
+
+```text
+Dashboard        /dashboard
+Cash             /cash
+Spending         /spending
+Investments      /investments
+Recap            /recap
+Transactions     /transactions
+Accounts         /accounts
+Settings         /settings
+```
+
+### 11.1.2 页面职责
+
+| 页面 | 核心问题 | 职责 |
+|---|---|---|
+| Dashboard | 我现在整体财务健康吗？ | KPI 汇总、净资产趋势、风险提醒、下一步行动、跨页面入口 |
+| Cash | 我短期现金够不够？ | 现金账户、信用卡短期负债、未来付款、30/60/90 天现金流风险 |
+| Spending | 我这个月钱花在哪里？ | 收入/支出、预算、分类、商户、周期费用、消费 insight |
+| Investments | 我的资产表现如何？ | 持仓、组合市值、收益、资产配置、多币种和 FX 暴露 |
+| Recap | 这个月/季度发生了什么？ | 月度/季度/年度总结、显著变化、风险、行动建议 |
+| Transactions | 底层交易数据是否正确？ | 搜索、筛选、分类修正、排除、转账标记、本地规则生成 |
+| Accounts | 数据源是否健康？ | 连接账户、手动账户、同步状态、source/last updated/confidence |
+| Settings | 系统如何解释我的数据？ | 预算、分类规则、预测假设、币种、时区、隐私和 AI 模式 |
+
+### 11.1.3 跳转原则
+
+```text
+/ -> /dashboard
+
+/dashboard
+├── /cash
+├── /spending
+├── /investments
+├── /recap
+├── /transactions
+├── /accounts
+└── /settings
+```
+
+- Dashboard 只展示摘要、风险和下一步行动，不承载所有细节。
+- Cash、Spending、Investments、Recap 等专题页负责分析。
+- Transactions 负责 drill-down、数据修正和分类规则创建。
+- 页面跳转通过 query 参数保留上下文，例如 `period=2026-05`、`category=Dining`、`merchant=Netflix`、`account=cibc-visa`、`review=true`、`section=recurring`。
+
+### 11.1.4 Dashboard 第一版范围
+
+Dashboard 第一版建议包含：
+
+1. Header：以 Total Net Worth 作为第一视觉焦点，同时展示较昨日变化的金额和百分比、用户目标进度（例如 FIRE 目标名、目标金额和进度条）、当前周期、数据状态 chip、Add data 快捷入口；
+2. KPI Navigation Cards：Cash、Investments、Spending、Accounts、Recap、Risk（Risk 的最终口径待 alerts/risk 生成逻辑确定）；
+3. Main Content Grid：桌面端使用 Net Worth Trend + Needs Attention 左右布局，移动端将 Needs Attention 放在 Trend 前方；
+4. Secondary Insight Row：Cashflow Forecast Preview、Spending Insight Preview、Recap / Goal Progress Preview；
+5. Quick Actions：优先通过 Header Add data 菜单和 Needs Attention 承载；只有空数据或 onboarding 状态才强展示大号快捷操作区。
+
+Dashboard 点击跳转示例：
+
+| Dashboard 元素 | 跳转 |
+|---|---|
+| Total Net Worth | `/investments`，未来可跳 `/net-worth` |
+| Goal Progress | `/settings?section=goals` |
+| Cash KPI | `/cash` |
+| Investments KPI | `/investments` |
+| Spending KPI | `/spending` |
+| Accounts KPI / Data Status | `/accounts` |
+| Recap KPI | `/recap?period=...` |
+| Risk KPI | 根据最高优先级风险跳 `/cash`、`/spending`、`/accounts` 或 `/transactions?review=true` |
 
 ## 12. MVP 开发路线
 
@@ -2556,11 +2631,13 @@ VFV.TO 使用上一交易日价格估值。
 
 ## 17. 下一步建议
 
-建议下一步直接拆成三份工程交付物：
+建议下一步直接拆成四份工程交付物：
 
-1. **MVP Backlog**
+1. **MVP Frontend Navigation**
+   - 维护在 `docs/MVP_FRONTEND_NAVIGATION.md`，用于沉淀侧边栏、路由、页面职责、Dashboard 规格和跨页面 drill-down 规则；
+2. **MVP Backlog**
    - 按 Epic / Feature / User Story / Acceptance Criteria 拆解；
-2. **Database ERD**
+3. **Database ERD**
    - 明确表关系、索引、数据流；
-3. **Dashboard Wireframe**
-   - 首页、消费页、投资页、订阅页、预测页的页面结构。
+4. **Dashboard Wireframe**
+   - 首页、Cash、Spending、Investments、Recap、Transactions、Accounts、Settings 的页面结构。

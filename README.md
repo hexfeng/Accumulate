@@ -12,6 +12,22 @@ Local-first personal finance dashboard for banking, spending analysis, recurring
 - Next.js dashboard with Dashboard, Transactions, and Spending pages.
 - Demo seed endpoint for local development.
 
+
+## Planned frontend navigation
+
+The current web app implements Dashboard, Transactions, and Spending. The MVP frontend information architecture is being expanded around Dashboard as the entry point and drill-down hub:
+
+- Dashboard (`/dashboard`) for the financial command center and cross-page entry points.
+- Cash (`/cash`) for cash balances, credit-card obligations, upcoming payments, and 30/60/90 day cashflow risk.
+- Spending (`/spending`) for income, expenses, budget usage, merchant/category insights, and recurring costs.
+- Investments (`/investments`) for manual holdings, portfolio value, returns, allocation, and FX exposure.
+- Recap (`/recap`) for monthly, quarterly, and yearly financial summaries.
+- Transactions (`/transactions`) for transaction drill-down, review, categorization, and local rule creation.
+- Accounts (`/accounts`) for account connection status, manual accounts, source visibility, and sync health.
+- Settings (`/settings`) for budgets, category rules, forecast assumptions, currency, and privacy preferences.
+
+See `docs/MVP_FRONTEND_NAVIGATION.md` for the detailed route map, page responsibilities, drill-down rules, and Dashboard page specification.
+
 ## Local setup
 
 ```powershell

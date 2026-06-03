@@ -6,17 +6,26 @@ import { DashboardView } from "./dashboard-view";
 import { demoDashboard, demoNetWorthHistoryByRange } from "@/lib/demo-data";
 
 describe("DashboardView", () => {
-  it("renders banking spending and net worth trend metrics from a dashboard snapshot", () => {
+  it("renders the Dashboard preview hero, KPI navigation, and insights from a snapshot", () => {
     render(<DashboardView initialNetWorthHistory={demoNetWorthHistoryByRange["1M"]} snapshot={demoDashboard} />);
 
-    expect(screen.getByText("Cash position")).toBeInTheDocument();
-    expect(screen.getByText("$15,400.00")).toBeInTheDocument();
-    expect(screen.getByText("Monthly spending")).toBeInTheDocument();
-    expect(screen.getByText("$1,248.26")).toBeInTheDocument();
+    expect(screen.getByText("Total net worth")).toBeInTheDocument();
+    expect(screen.getAllByText("$14,540.00").length).toBeGreaterThan(0);
+    expect(screen.getByText(/vs yesterday/)).toBeInTheDocument();
+    expect(screen.getByText("FIRE")).toBeInTheDocument();
+    expect(screen.getByText("Cash")).toBeInTheDocument();
+    expect(screen.getByText("Investments")).toBeInTheDocument();
+    expect(screen.getByText("Spending")).toBeInTheDocument();
+    expect(screen.getByText("Accounts")).toBeInTheDocument();
+    expect(screen.getByText("Recap")).toBeInTheDocument();
+    expect(screen.getByText("Risk")).toBeInTheDocument();
+    expect(screen.getByText("Needs attention")).toBeInTheDocument();
+    expect(screen.getByText("Cashflow forecast")).toBeInTheDocument();
+    expect(screen.getByText("Spending insight")).toBeInTheDocument();
+    expect(screen.getByText("Recap / goal")).toBeInTheDocument();
     expect(screen.getByText("Net worth trend")).toBeInTheDocument();
     expect(screen.queryByText("30/60/90 cashflow forecast")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "1M" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByText("Netflix")).toBeInTheDocument();
   });
 
   it("switches the displayed net worth range", () => {
