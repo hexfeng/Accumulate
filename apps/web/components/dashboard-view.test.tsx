@@ -24,6 +24,8 @@ describe("DashboardView", () => {
     expect(screen.getByText("Spending insight")).toBeInTheDocument();
     expect(screen.getByText("Recap / goal")).toBeInTheDocument();
     expect(screen.getByText("Net worth trend")).toBeInTheDocument();
+    expect(screen.getByText("Mock asset mix")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Stocks 42%, ETF 33%, Cash 25%" })).toBeInTheDocument();
     expect(screen.queryByText("30/60/90 cashflow forecast")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "1M" })).toHaveAttribute("aria-pressed", "true");
   });
@@ -38,5 +40,14 @@ describe("DashboardView", () => {
     fireEvent.click(screen.getByRole("button", { name: "ALL" }));
 
     expect(screen.getByRole("button", { name: "ALL" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("switches the net worth chart into the mock returns view", () => {
+    render(<DashboardView initialNetWorthHistory={demoNetWorthHistoryByRange["1M"]} snapshot={demoDashboard} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Returns" }));
+
+    expect(screen.getByRole("button", { name: "Returns" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText(/Mock return view past 1m/)).toBeInTheDocument();
   });
 });

@@ -6,6 +6,11 @@ export const demoDashboard: DashboardSnapshot = {
     { id: "eq-savings", user_id: "local-user", name: "EQ Savings", type: "savings", balance: 11200, currency: "CAD", source: "manual" },
     { id: "cibc-visa", user_id: "local-user", name: "CIBC Visa", type: "credit_card", balance: -860, currency: "CAD", source: "mock_simplefin" }
   ],
+  asset_allocation: [
+    { label: "Stocks", percent: 42, tone: "stocks", is_mock: true },
+    { label: "ETF", percent: 33, tone: "etf", is_mock: true },
+    { label: "Cash", percent: 25, tone: "cash", is_mock: true }
+  ],
   monthly_summary: {
     month: "2026-05",
     total_income: 5200,
