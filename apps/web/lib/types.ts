@@ -56,6 +56,13 @@ export type CashflowForecast = {
   assumptions: Record<string, unknown>;
 };
 
+export type AssetAllocationItem = {
+  label: string;
+  percent: number;
+  tone: "stocks" | "etf" | "cash";
+  is_mock?: boolean;
+};
+
 export type NetWorthRange = "1D" | "1W" | "1M" | "3M" | "6M" | "YTD" | "1Y" | "ALL";
 
 export type NetWorthHistoryPoint = {
@@ -73,6 +80,7 @@ export type NetWorthHistory = {
 
 export type DashboardSnapshot = {
   accounts: Account[];
+  asset_allocation?: AssetAllocationItem[];
   monthly_summary: MonthlySummary;
   recurring_items: RecurringItem[];
   forecast: CashflowForecast;
