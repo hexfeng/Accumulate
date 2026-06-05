@@ -119,7 +119,7 @@ export function AccountsView({
             <p>Monitor SimpleFIN Bridge accounts, separate cash from card obligations, and fill gaps with manual or statement data.</p>
           </div>
           <div className="workspace-actions accounts-hero-actions">
-            <button className="primary-action-button" type="button" onClick={() => setIsAddDialogOpen(true)}>
+            <button className="accounts-hero-action-button" type="button" onClick={() => setIsAddDialogOpen(true)}>
               Add account / Import
             </button>
           </div>

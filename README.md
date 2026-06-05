@@ -1,6 +1,6 @@
 # FinSight
 
-Local-first personal finance dashboard for banking, spending analysis, recurring costs, and 30/60/90 day cashflow forecasting.
+FinSight is a local-first personal finance workspace for bank-account tracking, cashflow forecasting, spending analysis, and source-health management. It combines a Dashboard command center with focused Cash, Accounts, Transactions, and Spending pages so users can move from high-level financial signals into account balances, card obligations, transaction review, and data-source actions.
 
 ## What is implemented
 
@@ -35,6 +35,7 @@ Completed:
 - Split cash accounts and credit cards into compact account rows with bank logos or card art, right-aligned balances, and small source pills.
 - Reworked account detail modals to show balance, account facts, latest transactions, sync/delete/actions, and click-outside dismissal.
 - Kept `Add account / Import` as a modal flow for manual entry and statement import instead of a standalone page/card.
+- Aligned the Accounts header action with the Dashboard pill-button style so `Add account / Import` sits centered with the header copy.
 - Added a local institution asset library for major Canadian banks, Wealthsimple, EQ Bank, PC Financial, Rogers Bank, and Amex card imagery.
 
 ## Planned frontend navigation
