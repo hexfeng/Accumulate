@@ -274,7 +274,7 @@ Frontend completed:
 
 2026-06-05 Accounts frontend polish:
 
-1. Moved the Accounts page title, summary totals, and `Add account / Import` action into a Dashboard/Cash-style header card.
+1. Moved the Accounts page title, summary totals, and `Add account / Import` action into a Dashboard/Cash-style header card, with the add/import action presented as a centered blue pill button.
 2. Reworked cash and credit-card account groups into compact rows with bank logos or credit-card artwork, small source pills, and right-aligned balances.
 3. Reworked account detail modals to show the account visual, balance, type/currency/source/last-sync facts, latest transactions, sync/delete/transactions actions, and click-outside dismissal.
 4. Kept manual add and statement import in a modal flow, with click-outside dismissal matching account detail modals.

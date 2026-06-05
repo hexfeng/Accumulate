@@ -854,7 +854,7 @@ th {
 }
 
 .accounts-hero-top {
-  align-items: flex-end;
+  align-items: center;
   display: flex;
   gap: 24px;
   justify-content: space-between;
@@ -874,6 +874,28 @@ th {
 
 .accounts-hero-actions {
   justify-content: flex-end;
+}
+
+.accounts-hero-action-button {
+  align-items: center;
+  background: var(--primary);
+  border: 1px solid rgba(11, 87, 208, 0.18);
+  border-radius: 999px;
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: var(--fs-body, 0.94rem);
+  font-weight: 800;
+  justify-content: center;
+  line-height: 1;
+  min-height: 36px;
+  padding: 9px 15px;
+  white-space: nowrap;
+}
+
+.accounts-hero-action-button:hover {
+  background: var(--primary-hover);
 }
 
 .accounts-hero-summary {
