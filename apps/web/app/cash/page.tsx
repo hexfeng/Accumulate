@@ -1,14 +1,15 @@
 import { AppShell } from "@/components/app-shell";
-import { PlaceholderView } from "@/components/placeholder-view";
+import { CashView } from "@/components/cash-view";
+import { getAccounts, getCashflowForecast, getDashboard, getTransactions } from "@/lib/api";
 
-export default function CashPage() {
+export const dynamic = "force-dynamic";
+
+export default async function CashPage() {
+  const [accounts, forecast, dashboard, transactions] = await Promise.all([getAccounts(), getCashflowForecast(), getDashboard(), getTransactions()]);
+
   return (
     <AppShell>
-      <PlaceholderView
-        description="Mock cash workspace placeholder. The Dashboard already previews the 30/60/90 day forecast while the dedicated cash planning view is being built."
-        eyebrow="Mock workspace"
-        title="Cash"
-      />
+      <CashView accounts={accounts} forecast={forecast} monthlySummary={dashboard.monthly_summary} transactions={transactions} />
     </AppShell>
   );
 }

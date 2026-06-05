@@ -825,6 +825,537 @@ th {
   }
 }
 
+.workspace-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.workspace-header h1 {
+  margin: 6px 0 8px;
+  font-size: clamp(2rem, 4vw, 3.5rem);
+}
+
+.workspace-header p {
+  margin: 0;
+  max-width: 680px;
+  color: var(--muted);
+}
+
+.section-eyebrow {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.workspace-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.workspace-actions a,
+.cash-asset-chip,
+.primary-action-button,
+.source-actions button,
+.row-actions button {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+  padding: 10px 14px;
+  text-decoration: none;
+}
+
+.cash-account-header {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  box-shadow: none;
+  display: grid;
+  gap: 22px;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  padding: 24px;
+}
+
+.cash-account-main,
+.cash-account-balance,
+.cash-account-side {
+  display: grid;
+}
+
+.cash-account-main {
+  align-content: space-between;
+  gap: 18px;
+}
+
+.cash-account-title {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.cash-account-title h1 {
+  font-size: clamp(1.9rem, 3.2vw, 2.8rem);
+  line-height: 1;
+  margin: 0;
+}
+
+.cash-account-balance {
+  gap: 8px;
+}
+
+.cash-account-balance > span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.cash-account-balance > strong {
+  font-size: clamp(2.75rem, 6vw, 4.35rem);
+  letter-spacing: 0;
+  line-height: 0.98;
+}
+
+.cash-account-meta {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.cash-account-meta small,
+.cash-account-main p,
+.cash-account-stat small {
+  color: var(--muted);
+}
+
+.cash-account-main p {
+  font-size: 0.98rem;
+  line-height: 1.45;
+  margin: 0;
+  max-width: 680px;
+}
+
+.cash-asset-chip {
+  border: 0;
+  box-shadow: none;
+  margin-top: 0;
+  padding: 6px 10px;
+}
+
+.cash-account-side {
+  gap: 10px;
+}
+
+.cash-account-stat {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  display: grid;
+  gap: 5px;
+  padding: 14px;
+}
+
+.cash-account-stat span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.cash-account-stat strong {
+  font-size: 1.35rem;
+  line-height: 1.1;
+}
+
+.cash-account-actions {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.cash-account-actions a {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  display: flex;
+  font-size: 0.92rem;
+  font-weight: 800;
+  justify-content: center;
+  min-height: 42px;
+  padding: 10px 12px;
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.primary-action-button {
+  background: var(--text);
+  color: var(--surface);
+}
+
+.account-summary-grid,
+.cash-summary-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.cash-summary-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.account-summary-tile,
+.cash-metric {
+  min-height: 116px;
+}
+
+.inline-error,
+.inline-status {
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.inline-error {
+  background: rgba(190, 65, 65, 0.12);
+  color: #9f2c2c;
+}
+
+.inline-status {
+  background: rgba(48, 128, 92, 0.12);
+  color: #246d4c;
+}
+
+.accounts-layout,
+.cash-tables-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1.1fr) minmax(300px, 0.9fr);
+}
+
+.account-form,
+.account-edit-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.account-form label,
+.account-edit-grid label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.account-form input,
+.account-form select,
+.account-edit-grid input,
+.account-edit-grid select {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  padding: 10px 12px;
+}
+
+.source-status {
+  display: grid;
+  gap: 8px;
+}
+
+.source-status strong {
+  font-size: 1.8rem;
+  text-transform: capitalize;
+}
+
+.source-status span,
+.source-status small,
+.forecast-assumptions,
+.empty-copy {
+  color: var(--muted);
+}
+
+.source-actions,
+.row-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.account-groups,
+.account-list,
+.simple-table {
+  display: grid;
+  gap: 12px;
+}
+
+.account-row,
+.simple-table-row {
+  display: grid;
+  align-items: center;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1.4fr) minmax(160px, 0.5fr) auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.account-row-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.account-row-main small,
+.account-row-balance small,
+.simple-table-row small {
+  display: block;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.source-badge {
+  border-radius: 999px;
+  color: #fff;
+  flex: 0 0 auto;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 6px 9px;
+}
+
+.source-manual {
+  background: #32835f;
+}
+
+.source-mock_simplefin {
+  background: #4e66b2;
+}
+
+.source-csv {
+  background: #a65f31;
+}
+
+.account-edit-grid {
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+}
+
+.cash-forecast-grid {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.cash-insight-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.cash-insight-grid .cash-forecast-grid {
+  grid-template-columns: 1fr;
+}
+
+.cash-metric {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.cash-metric:hover {
+  border-color: var(--primary);
+}
+
+.forecast-card {
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(80px, 0.7fr) minmax(110px, 0.8fr) minmax(150px, 1.1fr);
+  min-height: 72px;
+  padding: 8px 10px;
+}
+
+.forecast-card > div:first-child,
+.forecast-card dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.forecast-card > b {
+  font-size: 1.08rem;
+  white-space: nowrap;
+}
+
+.forecast-card dl {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+}
+
+.forecast-card dt,
+.forecast-card dd {
+  margin: 0;
+}
+
+.forecast-card dt {
+  color: var(--muted);
+}
+
+.forecast-card.risk-high {
+  background: rgba(190, 65, 65, 0.04);
+  border-color: rgba(190, 65, 65, 0.35);
+}
+
+.forecast-card.risk-medium {
+  background: rgba(190, 136, 65, 0.05);
+  border-color: rgba(190, 136, 65, 0.38);
+}
+
+.forecast-card.risk-low {
+  background: rgba(48, 128, 92, 0.05);
+  border-color: rgba(48, 128, 92, 0.35);
+}
+
+.forecast-assumptions {
+  display: flex;
+  font-size: 0.72rem;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 7px;
+}
+
+.forecast-panel,
+.cash-distribution-panel {
+  padding: 12px;
+}
+
+.forecast-panel .panel-heading.compact,
+.cash-distribution-panel .panel-heading.compact {
+  margin-bottom: 7px;
+}
+
+.cash-distribution-panel {
+  display: grid;
+  align-content: stretch;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.cash-distribution-content {
+  align-items: center;
+  align-self: stretch;
+  display: grid;
+  gap: 26px;
+  grid-template-columns: minmax(170px, 0.82fr) minmax(0, 1fr);
+  min-height: 0;
+}
+
+.cash-pie {
+  aspect-ratio: 1;
+  border-radius: 999px;
+  justify-self: center;
+  max-width: 164px;
+  min-width: 150px;
+  width: 100%;
+}
+
+.cash-donut-segment {
+  transform: rotate(-90deg);
+  transform-origin: 60px 60px;
+}
+
+.cash-distribution-list {
+  display: grid;
+  gap: 12px;
+}
+
+.cash-distribution-row {
+  align-items: center;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 2px 0;
+}
+
+.cash-distribution-row span {
+  align-items: center;
+  display: inline-flex;
+  font-size: 0.98rem;
+  gap: 10px;
+  min-width: 0;
+}
+
+.cash-distribution-row i {
+  border-radius: 999px;
+  flex: 0 0 auto;
+  height: 11px;
+  width: 11px;
+}
+
+.cash-distribution-row small {
+  color: var(--muted);
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.simple-table-row {
+  grid-template-columns: minmax(0, 1fr) minmax(140px, 0.5fr) auto;
+}
+
+@media (max-width: 980px) {
+  .workspace-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .accounts-layout,
+  .cash-tables-grid,
+  .cash-account-header,
+  .cash-insight-grid,
+  .account-summary-grid,
+  .cash-summary-grid,
+  .cash-forecast-grid,
+  .account-row,
+  .simple-table-row,
+  .account-edit-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cash-account-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .cash-distribution-content {
+    grid-template-columns: 1fr;
+  }
+
+  .forecast-card {
+    grid-template-columns: 1fr;
+  }
+
+  .account-row-balance {
+    justify-self: start;
+  }
+}
+
 /* Gemini-style dashboard reference */
 :root {
   --bg: #f8f9fa;
@@ -1579,11 +2110,16 @@ body {
   vector-effect: non-scaling-stroke;
 }
 
-.net-worth-endpoint {
-  fill: #ffffff;
-  stroke: var(--green);
-  stroke-width: 1.8;
-  vector-effect: non-scaling-stroke;
+.net-worth-endpoint-dot {
+  background: var(--green);
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px var(--surface);
+  height: 10px;
+  pointer-events: none;
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 10px;
+  z-index: 2;
 }
 
 .range-row {
@@ -2498,6 +3034,7 @@ body {
 }
 
 .app-shell.theme-dark .dashboard-hero,
+.app-shell.theme-dark .cash-account-header,
 .app-shell.theme-dark .metric-card,
 .app-shell.theme-dark .panel {
   background: var(--surface);
@@ -2506,6 +3043,25 @@ body {
 
 .app-shell.theme-dark .dashboard-hero {
   box-shadow: 0 20px 70px rgba(0, 0, 0, 0.24);
+}
+
+.app-shell.theme-dark .cash-account-header {
+  box-shadow: 0 20px 70px rgba(0, 0, 0, 0.18);
+}
+
+.app-shell.theme-dark .cash-account-stat,
+.app-shell.theme-dark .cash-account-actions a {
+  background: #1a1a1a;
+  border-color: #333333;
+}
+
+.app-shell.theme-dark .cash-account-actions a {
+  color: #dbe3ee;
+}
+
+.app-shell.theme-dark .cash-account-actions a:hover {
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
 .app-shell.theme-dark .hero-meta-row {
@@ -2613,9 +3169,9 @@ body {
   stroke: rgba(5, 5, 5, 0.86);
 }
 
-.app-shell.theme-dark .net-worth-endpoint {
-  fill: #111111;
-  stroke: #5fe0a0;
+.app-shell.theme-dark .net-worth-endpoint-dot {
+  background: #5fe0a0;
+  box-shadow: 0 0 0 2px var(--surface);
 }
 
 .app-shell.theme-dark .range-controls button[aria-pressed="true"] {
@@ -2902,4 +3458,221 @@ body {
   .mini-goal-track {
     margin-top: 13px;
   }
+}
+
+/* Unified app typography scale: keep page-to-page transitions visually steady. */
+:root {
+  --fs-page-title: clamp(2rem, 2.5vw, 2.5rem);
+  --fs-primary-money: clamp(2.35rem, 3.8vw, 2.85rem);
+  --fs-secondary-money: 1.45rem;
+  --fs-kpi-value: 1.45rem;
+  --fs-panel-title: 1.05rem;
+  --fs-label: 0.82rem;
+  --fs-body: 0.94rem;
+  --fs-small: 0.8rem;
+}
+
+.page-stack,
+.page-stack.dashboard-preview {
+  gap: 22px;
+  max-width: 1210px;
+}
+
+.page-header h1,
+.workspace-header h1,
+.cash-account-title h1 {
+  font-size: var(--fs-page-title);
+  line-height: 1.05;
+}
+
+.dashboard-hero {
+  gap: 20px;
+  padding: 24px 28px;
+}
+
+.hero-eyebrow,
+.section-eyebrow,
+.cash-account-balance > span,
+.cash-account-stat span,
+.metric-card span,
+.net-worth-chart-header span {
+  font-size: var(--fs-label);
+}
+
+.hero-amount,
+.cash-account-balance > strong {
+  font-size: var(--fs-primary-money);
+  font-weight: 650;
+  line-height: 1;
+}
+
+.hero-change,
+.hero-net-worth p,
+.cash-account-main p,
+.hero-period,
+.hero-chip,
+.hero-primary-action,
+.cash-account-actions a,
+.panel-heading.compact a,
+.forecast-row span,
+.forecast-row strong,
+.insight-stat span,
+.insight-stat small,
+.insight-note {
+  font-size: var(--fs-body);
+}
+
+.metric-card {
+  min-height: 96px;
+  padding: 15px 16px;
+}
+
+.metric-card strong,
+.cash-account-stat strong,
+.forecast-card > b,
+.insight-stat strong {
+  font-size: var(--fs-kpi-value);
+  line-height: 1.12;
+}
+
+.metric-card small,
+.cash-account-meta small,
+.cash-account-stat small,
+.simple-table-row small,
+.forecast-card dt,
+.forecast-card dd {
+  font-size: var(--fs-small);
+}
+
+.panel-heading.compact h2,
+.panel h2,
+.attention-panel h2 {
+  font-size: var(--fs-panel-title);
+}
+
+.cash-account-header {
+  gap: 20px;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  padding: 24px;
+}
+
+.cash-account-title {
+  gap: 10px;
+}
+
+.cash-account-main {
+  gap: 16px;
+}
+
+.cash-account-balance {
+  gap: 7px;
+}
+
+.cash-account-stat {
+  border-radius: 16px;
+  padding: 13px 14px;
+}
+
+.net-worth-chart-header strong {
+  font-size: 1.9rem;
+}
+
+.goal-header strong {
+  font-size: 1.25rem;
+}
+
+.goal-stats b,
+.goal-stats small {
+  font-size: var(--fs-small);
+}
+
+@media (max-width: 900px) {
+  :root {
+    --fs-page-title: clamp(1.85rem, 8vw, 2.25rem);
+    --fs-primary-money: clamp(2.25rem, 11vw, 2.75rem);
+  }
+
+  .dashboard-hero,
+  .cash-account-header {
+    padding: 22px;
+  }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --fs-kpi-value: 1.3rem;
+  }
+
+  .metric-card {
+    min-height: 88px;
+  }
+
+  .hero-meta-row,
+  .cash-account-meta {
+    align-items: flex-start;
+  }
+}
+
+.cash-account-meta .cash-asset-chip {
+  margin-top: 0;
+}
+
+.dashboard-hero .hero-eyebrow {
+  color: var(--muted);
+  font-size: var(--fs-label);
+  font-weight: 800;
+  letter-spacing: 0;
+  margin-bottom: 0;
+  text-transform: uppercase;
+}
+
+.app-shell.theme-dark .dashboard-hero .hero-eyebrow {
+  color: var(--muted);
+}
+
+.brand-mark {
+  background: transparent;
+  border-radius: 10px;
+  color: inherit;
+  height: 34px;
+  overflow: hidden;
+  width: 34px;
+}
+
+.brand-mark svg {
+  display: block;
+  height: 100%;
+  width: 100%;
+}
+
+.app-shell.theme-dark .brand-mark {
+  background: transparent;
+  color: inherit;
+}
+
+.simple-table-link {
+  color: var(--text);
+  text-decoration: none;
+  transition: background-color 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+
+.simple-table-link:hover {
+  background: var(--surface-strong);
+  border-color: var(--primary);
+  transform: translateY(-1px);
+}
+
+.cash-donut-link {
+  align-self: center;
+  border-radius: 999px;
+  color: inherit;
+  display: inline-grid;
+  justify-self: center;
+  place-items: center;
+  text-decoration: none;
+  transition: transform 140ms ease;
+}
+
+.cash-donut-link:hover {
+  transform: translateY(-1px) scale(1.015);
 }

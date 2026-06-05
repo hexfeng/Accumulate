@@ -98,3 +98,84 @@ def test_net_worth_history_api_returns_supported_ranges_with_current_balance():
         assert data["current_value"] == 14540
         assert data["change_amount"] == round(data["current_value"] - data["points"][0]["value"], 2)
         assert len(data["points"]) > 0
+
+
+def test_manual_account_can_be_created_updated_and_deleted():
+    client = make_client()
+
+    create_response = client.post(
+        "/api/accounts",
+        json={"name": "Emergency Fund", "type": "savings", "balance": 2500, "currency": "CAD"},
+    )
+
+    assert create_response.status_code == 200
+    created = create_response.json()
+    assert created["id"] == "emergency-fund"
+    assert created["source"] == "manual"
+    assert created["balance"] == 2500
+
+    update_response = client.patch(
+        "/api/accounts/emergency-fund",
+        json={"name": "Emergency Fund CAD", "type": "cash", "balance": 2750, "currency": "CAD"},
+    )
+
+    assert update_response.status_code == 200
+    updated = update_response.json()
+    assert updated["name"] == "Emergency Fund CAD"
+    assert updated["type"] == "cash"
+    assert updated["balance"] == 2750
+
+    delete_response = client.delete("/api/accounts/emergency-fund")
+
+    assert delete_response.status_code == 200
+    assert delete_response.json() == {"deleted_account_id": "emergency-fund"}
+    assert all(account["id"] != "emergency-fund" for account in client.get("/api/accounts").json())
+
+
+def test_missing_account_update_returns_404():
+    client = make_client()
+
+    response = client.patch(
+        "/api/accounts/not-found",
+        json={"name": "Missing", "type": "checking", "balance": 0, "currency": "CAD"},
+    )
+
+    assert response.status_code == 404
+
+
+def test_account_delete_rejects_transaction_backed_account():
+    client = make_client()
+    client.post(
+        "/api/accounts",
+        json={"name": "Manual Import", "type": "checking", "balance": 100, "currency": "CAD"},
+    )
+    client.post(
+        "/api/imports/csv",
+        json={
+            "rows": [
+                {
+                    "account_name": "Manual Import",
+                    "account_type": "checking",
+                    "transaction_date": "2026-05-08",
+                    "description": "PAYROLL ACME CANADA",
+                    "amount": "2000",
+                    "currency": "CAD",
+                }
+            ]
+        },
+    )
+
+    response = client.delete("/api/accounts/manual-import")
+
+    assert response.status_code == 409
+    assert "transaction history" in response.json()["detail"]
+
+
+def test_account_delete_rejects_non_manual_source_account():
+    client = make_client()
+    client.post("/api/seed/demo")
+
+    response = client.delete("/api/accounts/cibc-chequing")
+
+    assert response.status_code == 409
+    assert "manual accounts" in response.json()["detail"]

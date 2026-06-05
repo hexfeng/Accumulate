@@ -11,7 +11,8 @@ const navItems = [
   { href: "/spending", icon: SpendingIcon, label: "Spending" },
   { href: "/investments", icon: InvestmentsIcon, label: "Investments" },
   { href: "/recap", icon: RecapIcon, label: "Recap" },
-  { href: "/transactions", icon: TransactionsIcon, label: "Transactions" }
+  { href: "/transactions", icon: TransactionsIcon, label: "Transactions" },
+  { href: "/accounts", icon: AccountsIcon, label: "Accounts" }
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -49,7 +50,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         <aside className="sidebar">
           <div className="sidebar-header">
             <Link className="brand" href="/dashboard" aria-label="FinSight dashboard">
-              <span className="brand-mark">F</span>
+              <span className="brand-mark">
+                <BrandLogoIcon />
+              </span>
               <span>
                 <strong>FinSight</strong>
                 <small>Local-first finance</small>
@@ -87,6 +90,53 @@ export function AppShell({ children }: { children: ReactNode }) {
       )}
       <main className="main-surface">{children}</main>
     </div>
+  );
+}
+
+function BrandLogoIcon() {
+  return (
+    <svg aria-label="FinSight logo" role="img" viewBox="0 0 48 48">
+      <defs>
+        <linearGradient id="brandLogoBg" x1="8" x2="42" y1="7" y2="42" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#ffe86a" />
+          <stop offset="0.45" stopColor="#fbbc04" />
+          <stop offset="1" stopColor="#f59e0b" />
+        </linearGradient>
+        <filter id="brandLogoArrowShadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0.8" dy="1.4" floodColor="#9a6100" floodOpacity="0.32" stdDeviation="1.1" />
+        </filter>
+      </defs>
+      <rect width="48" height="48" rx="13" fill="url(#brandLogoBg)" />
+      <path
+        className="brand-trend-line"
+        d="M10.5 33.2 18.3 27.6 24.3 30.2 34.6 18.8"
+        fill="none"
+        filter="url(#brandLogoArrowShadow)"
+        stroke="#fffdf2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="4.1"
+      />
+      <path
+        className="brand-trend-arrow"
+        d="M29.3 18.2h6.5v6.5"
+        fill="none"
+        filter="url(#brandLogoArrowShadow)"
+        stroke="#fffdf2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="4.1"
+      />
+      <path
+        d="M10.5 33.2 18.3 27.6 24.3 30.2 34.6 18.8M29.3 18.2h6.5v6.5"
+        fill="none"
+        opacity="0.5"
+        stroke="#ffffff"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+    </svg>
   );
 }
 
@@ -152,6 +202,16 @@ function TransactionsIcon() {
     <svg viewBox="0 0 24 24">
       <path d="M7 8h11M7 16h11" />
       <path d="M15 5l3 3-3 3M10 13l-3 3 3 3" />
+    </svg>
+  );
+}
+
+function AccountsIcon() {
+  return (
+    <svg viewBox="0 0 24 24">
+      <rect x="4" y="5" width="16" height="14" rx="3" />
+      <path d="M8 9h8M8 13h5" />
+      <circle cx="17" cy="15.5" r="1.5" />
     </svg>
   );
 }

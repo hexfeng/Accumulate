@@ -7,7 +7,7 @@ from sqlalchemy.engine import Engine
 from app.domain.categorization import DEFAULT_RULES, categorize_transaction
 from app.domain.normalization import normalize_csv_transaction
 from app.domain.schemas import Account, BudgetSettings, CategoryRule, CsvTransactionRow, Transaction
-from app.store import LOCAL_USER_ID
+from app.store import LOCAL_USER_ID, AccountConflictError, AccountNotFoundError
 
 
 metadata = MetaData()
@@ -22,6 +22,7 @@ accounts = Table(
     Column("balance", Float, nullable=False, default=0),
     Column("currency", String, nullable=False, default="CAD"),
     Column("source", String, nullable=False),
+    Column("last_synced_at", String),
 )
 
 transactions = Table(
@@ -157,6 +158,35 @@ class DatabaseStore:
                 )
                 row = connection.execute(select(accounts).where(accounts.c.id == account_id)).mappings().one()
         return Account(**dict(row))
+
+    def create_account(self, name: str, account_type: str, balance: float = 0, currency: str = "CAD") -> Account:
+        return self.upsert_account(name=name, account_type=account_type, balance=balance, currency=currency, source="manual")
+
+    def update_account(self, account_id: str, name: str, account_type: str, balance: float, currency: str = "CAD") -> Account:
+        with self.engine.begin() as connection:
+            row = connection.execute(select(accounts).where(accounts.c.id == account_id)).mappings().first()
+            if row is None:
+                raise AccountNotFoundError(f"Account {account_id} was not found.")
+            connection.execute(
+                update(accounts)
+                .where(accounts.c.id == account_id)
+                .values(name=name, type=account_type, balance=balance, currency=currency)
+            )
+            updated = connection.execute(select(accounts).where(accounts.c.id == account_id)).mappings().one()
+        return Account(**dict(updated))
+
+    def delete_account(self, account_id: str) -> str:
+        with self.engine.begin() as connection:
+            account_row = connection.execute(select(accounts).where(accounts.c.id == account_id)).mappings().first()
+            if account_row is None:
+                raise AccountNotFoundError(f"Account {account_id} was not found.")
+            if account_row["source"] != "manual":
+                raise AccountConflictError("Only manual accounts can be deleted.")
+            transaction_row = connection.execute(select(transactions.c.id).where(transactions.c.account_id == account_id)).first()
+            if transaction_row is not None:
+                raise AccountConflictError("Account has transaction history and cannot be deleted.")
+            connection.execute(delete(accounts).where(accounts.c.id == account_id))
+        return account_id
 
     def import_csv_rows(self, rows: list[CsvTransactionRow]) -> int:
         created = 0

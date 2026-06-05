@@ -15,6 +15,24 @@ class Account(BaseModel):
     last_synced_at: str | None = None
 
 
+class AccountCreateRequest(BaseModel):
+    name: str
+    type: str
+    balance: float = 0
+    currency: str = "CAD"
+
+
+class AccountUpdateRequest(BaseModel):
+    name: str
+    type: str
+    balance: float
+    currency: str = "CAD"
+
+
+class AccountDeleteResponse(BaseModel):
+    deleted_account_id: str
+
+
 class CsvTransactionRow(BaseModel):
     account_name: str
     account_type: str
