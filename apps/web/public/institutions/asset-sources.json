@@ -1,0 +1,31 @@
+{
+  "logos": {
+    "rbc.jpg": "Apple iTunes Search API result for RBC Mobile",
+    "td.jpg": "Apple iTunes Search API result for TD Canada",
+    "scotiabank.jpg": "Apple iTunes Search API result for Scotiabank",
+    "bmo.jpg": "Apple iTunes Search API result for BMO Mobile Banking",
+    "cibc.jpg": "Apple iTunes Search API result for CIBC Mobile Banking",
+    "eq-bank.jpg": "Apple iTunes Search API result for EQ Bank Mobile Banking",
+    "wealthsimple.jpg": "Apple iTunes Search API result for Wealthsimple",
+    "pc-financial.jpg": "Apple iTunes Search API result for PC Financial Mobile",
+    "rogers-bank.png": "Rogers Bank public website logo asset",
+    "amex.jpg": "Apple iTunes Search API result for Amex Canada",
+    "national-bank.jpg": "Apple iTunes Search API result for NBC mobile application",
+    "tangerine.jpg": "Apple iTunes Search API result for Tangerine Mobile Banking",
+    "simplii.jpg": "Apple iTunes Search API result for Simplii Financial",
+    "neo.jpg": "Apple iTunes Search API result for Neo Financial",
+    "canadian-tire.jpg": "Apple iTunes Search API result for Triangle"
+  },
+  "cards": {
+    "rbc-avion-visa-infinite.png": "RBC Royal Bank public credit card page image",
+    "td-cash-back-visa-infinite.jpeg": "TD public credit card page image",
+    "bmo-eclipse-visa-infinite.png": "BMO public credit card page schema image",
+    "cibc-aventura-visa-infinite.png": "CIBC public credit card page card-art image",
+    "scotia-passport-visa-infinite.png": "Scotiabank public credit card page hero card image",
+    "pc-world-elite-mastercard.png": "PC Financial public credit card page card-art image",
+    "amex-cobalt.png": "American Express Canada public Cobalt card image",
+    "rogers-red-mastercard.svg": "Local placeholder card art based on Rogers Bank branding",
+    "wealthsimple-visa-infinite.svg": "Local placeholder card art based on Wealthsimple branding",
+    "eq-bank-card.svg": "Local placeholder card art based on EQ Bank branding"
+  }
+}

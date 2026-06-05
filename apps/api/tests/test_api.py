@@ -143,7 +143,7 @@ def test_missing_account_update_returns_404():
     assert response.status_code == 404
 
 
-def test_account_delete_rejects_transaction_backed_account():
+def test_account_delete_removes_transaction_backed_account_and_its_transactions():
     client = make_client()
     client.post(
         "/api/accounts",
@@ -167,15 +167,19 @@ def test_account_delete_rejects_transaction_backed_account():
 
     response = client.delete("/api/accounts/manual-import")
 
-    assert response.status_code == 409
-    assert "transaction history" in response.json()["detail"]
+    assert response.status_code == 200
+    assert response.json() == {"deleted_account_id": "manual-import"}
+    assert all(account["id"] != "manual-import" for account in client.get("/api/accounts").json())
+    assert all(transaction["account_id"] != "manual-import" for transaction in client.get("/api/transactions").json())
 
 
-def test_account_delete_rejects_non_manual_source_account():
+def test_account_delete_allows_synced_source_account_and_removes_transactions():
     client = make_client()
     client.post("/api/seed/demo")
 
     response = client.delete("/api/accounts/cibc-chequing")
 
-    assert response.status_code == 409
-    assert "manual accounts" in response.json()["detail"]
+    assert response.status_code == 200
+    assert response.json() == {"deleted_account_id": "cibc-chequing"}
+    assert all(account["id"] != "cibc-chequing" for account in client.get("/api/accounts").json())
+    assert all(transaction["account_id"] != "cibc-chequing" for transaction in client.get("/api/transactions").json())

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import React from "react";
 
+import { AccountVisual, accountSubtitle, formatCardBalance, sourceLabel } from "./account-visual";
 import { formatCurrency } from "@/lib/format";
 import type { Account, CashflowForecast, CashflowForecastPoint, MonthlySummary, Transaction } from "@/lib/types";
 
@@ -141,12 +142,22 @@ function AccountTable({ accounts, empty, title }: { accounts: Account[]; empty: 
         <span>{accounts.length} accounts</span>
       </div>
       {accounts.length ? (
-        <div className="simple-table" role="table" aria-label={title}>
+        <div className="simple-table" role="list" aria-label={title}>
           {accounts.map((account) => (
-            <Link className="simple-table-row simple-table-link" href="/accounts" key={account.id}>
-              <span>{account.name}</span>
-              <small>{formatType(account.type)} - {account.source}</small>
-              <strong>{formatCurrency(account.balance)}</strong>
+            <Link className="simple-table-row simple-table-link account-row-button" href="/accounts" key={account.id} aria-label={`Open ${account.name} account`}>
+              <div className="account-row-main">
+                <AccountVisual account={account} />
+                <div>
+                  <span className="account-name-line">
+                    <strong>{account.name}</strong>
+                    <span className={`source-badge source-${account.source}`}>{sourceLabel(account.source)}</span>
+                  </span>
+                  <small>{accountSubtitle(account)}</small>
+                </div>
+              </div>
+              <div className="account-row-balance">
+                <strong>{account.type === "credit_card" ? formatCardBalance(account.balance) : formatCurrency(account.balance)}</strong>
+              </div>
             </Link>
           ))}
         </div>
@@ -285,8 +296,4 @@ function formatRisk(risk: string) {
 
 function formatPercent(value: number) {
   return `${value.toFixed(1)}%`;
-}
-
-function formatType(type: string) {
-  return type.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 224" role="img" aria-label="Wealthsimple Visa Infinite">
+  <defs>
+    <linearGradient id="wealthsimple-card" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#111827"/>
+      <stop offset="1" stop-color="#020617"/>
+    </linearGradient>
+  </defs>
+  <rect width="360" height="224" rx="24" fill="url(#wealthsimple-card)"/>
+  <rect x="28" y="34" width="46" height="34" rx="8" fill="#1ee69d"/>
+  <text x="41" y="59" fill="#07120d" font-family="Arial, sans-serif" font-size="24" font-weight="900">W</text>
+  <text x="28" y="180" fill="#fff" font-family="Arial, sans-serif" font-size="22" font-weight="800">WEALTHSIMPLE</text>
+  <text x="278" y="54" fill="#fff" font-family="Arial, sans-serif" font-size="22" font-weight="800">VISA</text>
+  <text x="270" y="78" fill="#cbd5e1" font-family="Arial, sans-serif" font-size="12" font-weight="700">INFINITE</text>
+</svg>

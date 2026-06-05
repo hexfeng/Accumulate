@@ -180,11 +180,7 @@ class DatabaseStore:
             account_row = connection.execute(select(accounts).where(accounts.c.id == account_id)).mappings().first()
             if account_row is None:
                 raise AccountNotFoundError(f"Account {account_id} was not found.")
-            if account_row["source"] != "manual":
-                raise AccountConflictError("Only manual accounts can be deleted.")
-            transaction_row = connection.execute(select(transactions.c.id).where(transactions.c.account_id == account_id)).first()
-            if transaction_row is not None:
-                raise AccountConflictError("Account has transaction history and cannot be deleted.")
+            connection.execute(delete(transactions).where(transactions.c.account_id == account_id))
             connection.execute(delete(accounts).where(accounts.c.id == account_id))
         return account_id
 
