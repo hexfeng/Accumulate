@@ -63,10 +63,8 @@ class LocalStore:
         account = self.accounts.get(account_id)
         if account is None:
             raise AccountNotFoundError(f"Account {account_id} was not found.")
-        if account.source != "manual":
-            raise AccountConflictError("Only manual accounts can be deleted.")
-        if any(transaction.account_id == account_id for transaction in self.transactions.values()):
-            raise AccountConflictError("Account has transaction history and cannot be deleted.")
+        for transaction_key in [key for key, transaction in self.transactions.items() if transaction.account_id == account_id]:
+            del self.transactions[transaction_key]
         del self.accounts[account_id]
         return account_id
 

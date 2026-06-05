@@ -1,6 +1,8 @@
 # FinSight MVP Frontend Navigation and Page Plan
 
-This document captures the MVP frontend information architecture, route map, cross-page navigation, and first-pass Dashboard page specification. It is intended to be the day-to-day product and implementation reference while the longer PRD/technical architecture document remains the source of broader product context.
+This document captures the MVP frontend information architecture, route map, cross-page navigation, and current implementation status. It is the day-to-day product and task reference while the longer PRD/technical architecture document remains the broader product source.
+
+Last updated: 2026-06-05
 
 ## 1. Navigation principles
 
@@ -14,24 +16,29 @@ FinSight is organized around user financial questions, not isolated features:
 6. Which underlying transactions need review?
 7. Are my accounts, data sources, budgets, and privacy preferences configured correctly?
 
-The Dashboard is the product entry point. Topic pages provide deeper analysis. Transactions is the shared drill-down and data correction layer.
+The Dashboard is the product entry point. Topic pages provide deeper analysis. Transactions is the shared drill-down and data correction layer. Accounts is the management layer for balances, sources, and sync state.
 
 ## 2. Sidebar structure
 
-The MVP sidebar should expose these primary routes:
+The current main sidebar exposes implemented or active MVP routes:
 
 ```text
-Dashboard        /dashboard
-Cash             /cash
-Spending         /spending
-Investments      /investments
-Recap            /recap
-Transactions     /transactions
-Accounts         /accounts
-Settings         /settings
+Dashboard        /dashboard        implemented
+Cash             /cash             implemented
+Spending         /spending         implemented
+Investments      /investments      placeholder
+Recap            /recap            placeholder
+Transactions     /transactions     implemented
+Accounts         /accounts         implemented
 ```
 
-A grouped version can be used when the sidebar needs more structure:
+Settings exists as a deferred route and should not be added to the main sidebar until budget/category/forecast/privacy settings are ready:
+
+```text
+Settings         /settings         deferred placeholder
+```
+
+A future grouped version can be used when the sidebar needs more structure:
 
 ```text
 Overview
@@ -59,12 +66,12 @@ Manage
 /                         -> redirect to /dashboard
 
 /dashboard                -> financial command center and page hub
-/cash                     -> cash balances, liquidity, upcoming payments, forecast risk
+/cash                     -> liquidity, monthly flow, forecast risk, account distribution
 /spending                 -> income, expenses, budgets, category and merchant insights
 /investments              -> portfolio, holdings, returns, allocation, FX exposure
 /recap                    -> monthly, quarterly, and yearly recap
 /transactions             -> transaction detail, review, categorization, rules
-/accounts                 -> accounts, data sources, sync health, connection state
+/accounts                 -> accounts, manual CRUD, data sources, sync health
 /settings                 -> budget, category rules, forecast assumptions, privacy
 ```
 
@@ -80,16 +87,16 @@ Future nested routes may include:
 
 ## 4. Page responsibilities
 
-| Page | Core question | Primary responsibilities |
-|---|---|---|
-| Dashboard | Am I financially healthy right now? | KPI summary, net-worth trend, alerts, next actions, cross-page entry points. |
-| Cash | Is my short-term liquidity safe? | Cash accounts, credit-card obligations, upcoming payments, 30/60/90 day cashflow risk. |
-| Spending | Where did my money go? | Income/spending summary, budgets, categories, merchants, recurring costs, spending insights. |
-| Investments | How is my wealth performing? | Holdings, portfolio value, returns, allocation, account breakdown, FX exposure. |
-| Recap | What changed over a period? | Monthly/quarterly/yearly summaries, notable changes, recurring costs, action items. |
-| Transactions | Is the source data correct? | Search, filters, review queue, categorization, exclusion, transfer marking, rule creation. |
-| Accounts | Are my data sources healthy? | Connected/manual accounts, balances, source labels, sync health, data freshness. |
-| Settings | How should FinSight interpret my data? | Budgets, category rules, forecast assumptions, base currency, timezone, privacy/AI modes. |
+| Page | Status | Core question | Primary responsibilities |
+|---|---|---|---|
+| Dashboard | Implemented | Am I financially healthy right now? | KPI summary, net-worth trend, alerts, next actions, cashflow/spending previews, cross-page entry points. |
+| Cash | Implemented | Is my short-term liquidity safe? | Monthly in-flow/out-flow, available cash, net short-term position, 30/60/90 forecast, cash distribution, cash and credit account drill-downs. |
+| Spending | Implemented MVP | Where did my money go? | Income/spending summary, categories, merchants, recurring costs, spending insights. |
+| Investments | Placeholder | How is my wealth performing? | Holdings, portfolio value, returns, allocation, account breakdown, FX exposure. |
+| Recap | Placeholder | What changed over a period? | Monthly/quarterly/yearly summaries, notable changes, recurring costs, action items. |
+| Transactions | Implemented MVP | Is the source data correct? | Search, filters, review queue, categorization, exclusion, transfer marking, rule creation. |
+| Accounts | Implemented | Are my accounts and data sources healthy? | SimpleFIN Bridge status, cash account grouping, credit-card obligation grouping, institution visuals, source labels, clean one-line account rows, modal-based manual/statement entry, click-through account detail/update modals, and click-outside modal dismissal. |
+| Settings | Deferred | How should FinSight interpret my data? | Budgets, category rules, forecast assumptions, base currency, timezone, privacy/AI modes. |
 
 ## 5. Cross-page drill-down rules
 
@@ -106,14 +113,31 @@ section=recurring
 tab=allocation
 ```
 
-Examples:
+Implemented examples:
+
+```text
+/cash inflow KPI                 -> /recap?period=<current-month>
+/cash outflow KPI                -> /recap?period=<current-month>
+/cash available cash KPI         -> /accounts
+/cash net position KPI           -> /accounts
+/cash account distribution       -> /accounts
+/cash cash accounts              -> /accounts
+/cash credit card obligations    -> /accounts
+/dashboard Cash card             -> /cash
+/dashboard Accounts card         -> /accounts
+/dashboard forecast preview      -> /cash
+/transactions?category=Dining
+/transactions?merchant=Netflix
+/transactions?account=cibc-visa
+/transactions?review=true
+```
+
+Planned examples:
 
 ```text
 /spending?category=Dining
 /transactions?category=Dining&period=2026-05
-/transactions?merchant=Netflix
-/transactions?account=cibc-visa
-/transactions?review=true
+/transactions?merchant=Netflix&period=2026-05
 /recap?period=2026-05
 /settings?section=budget
 ```
@@ -122,78 +146,47 @@ Examples:
 
 ```text
 /
-└── /dashboard
-    ├── /cash
-    │   ├── /transactions?account=...
-    │   ├── /transactions?merchant=...
-    │   └── /settings?section=forecast
-    │
-    ├── /spending
-    │   ├── /transactions?category=...
-    │   ├── /transactions?merchant=...
-    │   └── /settings?section=budget
-    │
-    ├── /investments
-    │   ├── /investments/new
-    │   ├── /investments/holdings/:id
-    │   └── /accounts?type=investment
-    │
-    ├── /recap
-    │   ├── /spending?period=...
-    │   ├── /transactions?period=...
-    │   └── /investments?period=...
-    │
-    ├── /transactions
-    │   └── /transactions?review=true
-    │
-    ├── /accounts
-    │   ├── /accounts/new
-    │   └── /transactions?account=...
-    │
-    └── /settings
+`-- /dashboard
+    |-- /cash
+    |   |-- /recap?period=...
+    |   |-- /accounts
+    |   `-- /transactions
+    |
+    |-- /spending
+    |   |-- /transactions?category=...
+    |   |-- /transactions?merchant=...
+    |   `-- /settings?section=budget
+    |
+    |-- /investments
+    |   |-- /investments/new
+    |   |-- /investments/holdings/:id
+    |   `-- /accounts?type=investment
+    |
+    |-- /recap
+    |   |-- /spending?period=...
+    |   |-- /transactions?period=...
+    |   `-- /investments?period=...
+    |
+    |-- /transactions
+    |   `-- /transactions?review=true
+    |
+    `-- /accounts
+        |-- cash accounts
+        |-- credit cards
+        |-- bank logo and card art rows
+        |-- click account row for detail/update modal
+        |-- click outside modal to dismiss
+        |-- account update/delete from account modals
+        |-- statement import entry from Add account / Import modal
+        |-- mock SimpleFIN connect/sync/disconnect
+        `-- /transactions?account=...
 ```
 
 ## 7. Dashboard specification
 
 Dashboard is the entry page and summary hub. It should answer: "What needs my attention right now?"
 
-### 7.1 Recommended layout
-
-```text
-Dashboard
-├── Header
-│   ├── Total Net Worth primary value
-│   ├── Change vs yesterday, amount and percentage
-│   ├── Goal progress, such as FIRE / $145.3K of $1.5M / progress bar
-│   ├── Current period
-│   ├── Data status chips
-│   └── Primary action, such as Add data
-│
-├── KPI Cards
-│   ├── Cash
-│   ├── Investments
-│   ├── Spending
-│   ├── Accounts
-│   ├── Recap
-│   └── Risk
-│
-├── Main Area
-│   ├── Net Worth Trend
-│   └── Alerts / Next Actions
-│
-├── Secondary Panels
-│   ├── Cashflow Forecast Preview
-│   ├── Spending Insight Preview
-│   └── Recap / Goal Progress Preview
-│
-└── Quick Actions
-    ├── Import CSV
-    ├── Add Account
-    ├── Add Holding
-    └── Review Transactions
-```
-
-### 7.2 Confirmed Dashboard body layout
+### 7.1 Confirmed Dashboard body layout
 
 The confirmed layout below the Total Net Worth header is:
 
@@ -207,28 +200,20 @@ Add-data and review actions: header menu first, larger empty-state actions only 
 
 Desktop should use a six-card KPI row when width allows, then a two-column main grid with Net Worth Trend on the left and Needs Attention on the right. The secondary insight row should use three equal cards. On mobile, the order should be Header, KPI cards, Needs Attention, Net Worth Trend, Cashflow Forecast, Spending Insight, then Recap / Goal so urgent actions remain visible before detailed charts.
 
-### 7.3 Dashboard header
+### 7.2 Dashboard header
 
 The Dashboard header is the first visual focus. It should promote Total Net Worth above the generic page title.
 
 | Element | Displays | Click target | Notes |
 |---|---|---|---|
 | Total Net Worth | Current total net worth. | `/investments` or future `/net-worth`. | MVP can use accounts-only net worth until holdings and valuation are implemented. Label the source clearly. |
-| Change vs yesterday | Absolute amount and percentage, such as `+$1,182.30 · +0.82% vs yesterday`. | Same as Total Net Worth. | If previous-day data is unavailable, show `No previous day data` instead of `0.00%`. |
-| Goal progress | User-configured goal name and target, such as `FIRE`, `$145.3K / $1.5M`, and a progress bar. | `/settings?section=goals`. | Default current value is Total Net Worth. If the user configures a scoped goal, such as an investment goal, use that scoped value instead. |
+| Change vs yesterday | Absolute amount and percentage, such as `+$1,182.30 and +0.82% vs yesterday`. | Same as Total Net Worth. | If previous-day data is unavailable, show `No previous day data` instead of `0.00%`. |
+| Goal progress | User-configured goal name and target, such as `FIRE`, `$145.3K / $1.5M`, and a progress bar. | `/settings?section=goals`. | Default current value is Total Net Worth. If the user configures a scoped goal, use that scoped value instead. |
 | Current period | Current month or reporting period, such as `Jun 2026`. | Future period selector. | Keep as display-only for the first implementation. |
 | Data status chips | Local-first, Mock SimpleFIN, updated/stale/sync issue states. | `/accounts`. | Status details belong on Accounts. |
 | Primary action | `Add data`. | Add-data menu or first supported target. | Menu items can include Import CSV, Add manual account, Add holding, and Connect SimpleFIN. |
 
-When no user goal is configured, the goal area should show a setup state:
-
-```text
-Set a financial goal
-Track progress toward FIRE, down payment, or emergency fund.
-Set goal -> /settings?section=goals
-```
-
-### 7.4 Dashboard KPI cards
+### 7.3 Dashboard KPI cards
 
 Total Net Worth belongs in the header, so KPI cards should not duplicate it. Recurring costs and spending insights are integrated into Spending instead of being first-level cards.
 
@@ -241,7 +226,7 @@ Total Net Worth belongs in the header, so KPI cards should not duplicate it. Rec
 | Recap | Latest monthly/quarterly recap status. | `/recap`. | Show `May recap ready` when enough period data exists. |
 | Risk | Highest priority risk, such as cashflow, budget, sync, or review risk. | Risk-specific target, usually `/cash`, `/spending`, `/accounts`, or `/transactions?review=true`. | Keep final naming and risk composition open until alert generation is implemented. |
 
-### 7.5 Dashboard alerts and next actions
+### 7.4 Dashboard alerts and next actions
 
 Dashboard should show a prioritized feed of actionable items:
 
@@ -258,7 +243,7 @@ Dashboard should show a prioritized feed of actionable items:
 
 Priority order should be critical, warning, review, informational, and success.
 
-### 7.6 Dashboard secondary panels
+### 7.5 Dashboard secondary panels
 
 | Panel | Purpose | Interactions |
 |---|---|---|
@@ -267,33 +252,120 @@ Priority order should be critical, warning, review, informational, and success.
 | Spending Insight Preview | Budget usage, top category, recurring summary, and spending insight preview. | Opens `/spending` or `/spending?category=...`. |
 | Recap / Goal Progress Preview | Recap readiness or goal milestone context. | Opens `/recap` or `/settings?section=goals`. |
 
-### 7.7 Dashboard first implementation scope
+## 8. Accounts + Cash MVP status
 
-Implement first:
+The Accounts + Cash MVP slice is complete as of 2026-06-04.
 
-1. Header with Total Net Worth as the primary visual, absolute and percentage change vs yesterday, goal progress, current period, data status chips, and Add data action.
-2. Six KPI cards: Cash, Investments, Spending, Accounts, Recap, and Risk.
-3. Net-worth trend with explicit source/estimation label.
-4. Alert / next-action feed.
-5. Cashflow forecast preview and Spending insight preview.
-6. Quick actions for import CSV, add account, add holding, and review transactions.
+Backend completed:
 
-Defer:
+1. Added account request/response schemas for create, update, and delete.
+2. Added account CRUD methods to local and SQL stores.
+3. Added account delete behavior that removes the selected account and its attached transactions.
+4. Added `POST /api/accounts`, `PATCH /api/accounts/{account_id}`, and `DELETE /api/accounts/{account_id}`.
+5. Kept imported/mock/csv account balances read-only outside their update flows while allowing account-level removal from detail modals.
 
-1. AI-generated summary.
-2. What-if simulation.
-3. Net-worth attribution waterfall.
-4. True investment return until holdings and valuation are implemented.
-5. Multi-chart mode switching.
+Frontend completed:
 
-## 8. Implementation order
+1. Added typed API helpers for accounts, mock SimpleFIN status/actions, and cashflow forecast.
+2. Replaced `/accounts` placeholder with SimpleFIN Bridge status, cash accounts, credit cards, institution visuals, source labels, one-line account rows, row-click detail/update modals, manual CRUD, statement import entry, delete confirmation, and mock SimpleFIN controls.
+3. Replaced `/cash` placeholder with compact liquidity header, four clickable KPI cards, compact 30/60/90 forecast, cash account distribution, and account drill-down tables.
+4. Added Accounts to the main sidebar and kept Settings deferred.
+5. Polished Dashboard/Cash typography, Dashboard trend endpoint marker, and FinSight brand logo.
 
-1. Update sidebar and add placeholder routes for Cash, Investments, Recap, Accounts, and Settings.
-2. Refactor Dashboard KPI cards and add click targets.
-3. Add Dashboard alert feed and forecast preview.
-4. Add query-parameter-driven filters to Transactions.
-5. Build Cash page using existing accounts and cashflow forecast data.
-6. Expand Spending with income, recurring, budget, and merchant/category insights.
-7. Add Investments as a setup-first page, then implement holdings and valuation.
-8. Add Recap after enough period-level analytics exist.
-9. Add Accounts and Settings to support data source health, budgets, and privacy configuration.
+2026-06-05 Accounts frontend polish:
+
+1. Moved the Accounts page title, summary totals, and `Add account / Import` action into a Dashboard/Cash-style header card.
+2. Reworked cash and credit-card account groups into compact rows with bank logos or credit-card artwork, small source pills, and right-aligned balances.
+3. Reworked account detail modals to show the account visual, balance, type/currency/source/last-sync facts, latest transactions, sync/delete/transactions actions, and click-outside dismissal.
+4. Kept manual add and statement import in a modal flow, with click-outside dismissal matching account detail modals.
+5. Added a local institution asset library for major Canadian banks, Wealthsimple, EQ Bank, PC Financial, Rogers Bank, and Amex card imagery.
+
+Verification completed for commit `74da22d`:
+
+```powershell
+npm run test:api
+npm run test:web
+npm run build:web
+```
+
+## 9. Remaining task plan
+
+### 9.1 Recap page
+
+Goal: make `/recap` the period summary page used by Cash in-flow/out-flow drill-downs.
+
+Tasks:
+
+1. Add period selector and route support for `period=YYYY-MM`.
+2. Show income, spending, net cashflow, savings rate, recurring costs, and notable category changes.
+3. Link categories and merchants into filtered Transactions views.
+4. Add frontend tests for period rendering and Cash KPI drill-down context.
+
+Acceptance:
+
+- `/recap?period=<current-month>` explains the same monthly in-flow/out-flow values shown on Cash.
+- Empty or sparse data states do not crash the page.
+
+### 9.2 Spending expansion
+
+Goal: turn Spending into the primary expense analysis page.
+
+Tasks:
+
+1. Add budget usage states and category thresholds.
+2. Add merchant/category detail sections.
+3. Add recurring cost summary and drill-down links.
+4. Preserve filters when moving from Spending to Transactions.
+
+Acceptance:
+
+- A user can identify top spending drivers and open the matching transaction list.
+- Budget warnings can feed Dashboard alerts.
+
+### 9.3 Investments MVP
+
+Goal: make Investments usable as a setup-first manual holdings page.
+
+Tasks:
+
+1. Add manual holding model/API.
+2. Add holding create/edit/delete UI.
+3. Add portfolio value, allocation, and account grouping.
+4. Keep external market-data integrations deferred until the manual model is stable.
+
+Acceptance:
+
+- A user can enter holdings and see portfolio value/allocation without external integrations.
+- Dashboard investment card links to meaningful setup or holdings state.
+
+### 9.4 Settings MVP
+
+Goal: add Settings after the current working surfaces need configurable assumptions.
+
+Tasks:
+
+1. Budget and category-rule settings.
+2. Forecast assumptions.
+3. Currency/timezone preferences.
+4. Privacy and local-first controls.
+5. Add Settings to the main sidebar only after at least budget or forecast settings are usable.
+
+Acceptance:
+
+- Settings changes affect at least one live page instead of being static controls.
+
+### 9.5 True account connectivity
+
+Goal: replace mock SimpleFIN behavior with real integration behind the same UI contract.
+
+Tasks:
+
+1. Add credential handling and secure local storage strategy.
+2. Replace mock connect/sync/disconnect adapter.
+3. Add sync freshness, error, and retry states.
+4. Add integration tests around source update/delete behavior and imported account read-only balance handling.
+
+Acceptance:
+
+- Existing Accounts UI still works while the source changes from mock to real integration.
+- Synced accounts remain protected from accidental inline manual edits, while detail modals expose explicit sync and delete actions.

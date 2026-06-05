@@ -72,7 +72,7 @@ describe("CashView", () => {
     expect(screen.getByText("90 days")).toBeInTheDocument();
     expect(screen.getByText("High risk")).toBeInTheDocument();
     expect(screen.getAllByText("Chequing").length).toBeGreaterThan(0);
-    expect(screen.getByText("Visa")).toBeInTheDocument();
+    expect(screen.getAllByText("Visa").length).toBeGreaterThan(0);
     expect(screen.queryByText("RRSP")).not.toBeInTheDocument();
     const distributionPanel = screen.getByText("Cash account distribution").closest("article");
     expect(distributionPanel).not.toBeNull();
@@ -89,8 +89,11 @@ describe("CashView", () => {
     expect(distribution.getByText("70.0%")).toBeInTheDocument();
     expect(distribution.queryByText("$1,200.00")).not.toBeInTheDocument();
     expect(distribution.queryByText("$2,800.00")).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Chequing Checking - manual/ })).toHaveAttribute("href", "/accounts");
-    expect(screen.getByRole("link", { name: /Visa Credit Card - mock_simplefin/ })).toHaveAttribute("href", "/accounts");
+    expect(screen.getByRole("link", { name: "Open Chequing account" })).toHaveAttribute("href", "/accounts");
+    expect(screen.getByRole("link", { name: "Open Visa account" })).toHaveAttribute("href", "/accounts");
+    expect(screen.getAllByText("Manual").length).toBeGreaterThan(0);
+    expect(screen.getByText("SimpleFIN")).toBeInTheDocument();
+    expect(screen.getByText("$650.00 outstanding")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Manage accounts" })).toHaveAttribute("href", "/accounts");
     expect(screen.getByRole("link", { name: "Review transactions" })).toHaveAttribute("href", "/transactions");
   });
