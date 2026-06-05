@@ -1,11 +1,38 @@
+export type AccountType = "checking" | "savings" | "cash" | "credit_card" | "investment" | "loan" | "other";
+
+export type AccountInput = {
+  name: string;
+  type: AccountType;
+  balance: number;
+  currency: string;
+};
+
+export type AccountDeleteResponse = {
+  deleted_account_id: string;
+};
+
+export type SimpleFinStatus = {
+  provider: string;
+  status: string;
+  mode: string;
+  message: string;
+};
+
+export type SimpleFinActionResponse = {
+  status: string;
+  provider: string;
+  mode?: string;
+};
+
 export type Account = {
   id: string;
   user_id: string;
   name: string;
-  type: string;
+  type: AccountType;
   balance: number;
   currency: string;
   source: string;
+  last_synced_at?: string | null;
 };
 
 export type CategorySummary = {

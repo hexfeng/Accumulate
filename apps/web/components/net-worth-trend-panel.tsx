@@ -26,6 +26,10 @@ export function NetWorthTrendPanel({ initialHistory }: Props) {
   const visiblePoints = useMemo(() => (chartMode === "returns" ? buildReturnSeries(history.points) : history.points), [chartMode, history.points]);
   const chart = useMemo(() => buildChartPath(visiblePoints), [visiblePoints]);
   const areaData = `${chart.pathData} L ${chart.lastPoint.x} 44 L ${chart.firstPoint.x} 44 Z`;
+  const endpointStyle = {
+    left: `${Number(chart.lastPoint.x)}%`,
+    top: `${(Number(chart.lastPoint.y) / 44) * 100}%`
+  };
   const changeIsPositive = history.change_amount >= 0;
   const changeLabel = `${changeIsPositive ? "+" : "-"}${formatCurrency(Math.abs(history.change_amount))} ${rangeCaption(selectedRange)}`;
   const returnLabel = `${changeIsPositive ? "+" : "-"}${formatPercent(Math.abs(history.change_pct))}`;
@@ -71,8 +75,8 @@ export function NetWorthTrendPanel({ initialHistory }: Props) {
           <path className="net-worth-area" d={areaData} fill="url(#netWorthArea)" />
           <path className="net-worth-line-underlay" d={chart.pathData} />
           <path className="net-worth-line" d={chart.pathData} filter="url(#netWorthLineShadow)" />
-          <circle className="net-worth-endpoint" cx={chart.lastPoint.x} cy={chart.lastPoint.y} r="1.15" />
         </svg>
+        <span aria-hidden="true" className="net-worth-endpoint-dot" style={endpointStyle} />
       </div>
 
       <div className="range-row">

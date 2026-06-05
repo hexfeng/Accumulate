@@ -10,6 +10,14 @@ from app.domain.schemas import Account, BudgetSettings, CategoryRule, CsvTransac
 LOCAL_USER_ID = "local-user"
 
 
+class AccountNotFoundError(Exception):
+    pass
+
+
+class AccountConflictError(Exception):
+    pass
+
+
 @dataclass
 class LocalStore:
     accounts: dict[str, Account] = field(default_factory=dict)
@@ -39,6 +47,28 @@ class LocalStore:
         account = Account(id=account_id, user_id=LOCAL_USER_ID, name=name, type=account_type, balance=balance, currency=currency, source=source)
         self.accounts[account.id] = account
         return account
+
+    def create_account(self, name: str, account_type: str, balance: float = 0, currency: str = "CAD") -> Account:
+        return self.upsert_account(name=name, account_type=account_type, balance=balance, currency=currency, source="manual")
+
+    def update_account(self, account_id: str, name: str, account_type: str, balance: float, currency: str = "CAD") -> Account:
+        account = self.accounts.get(account_id)
+        if account is None:
+            raise AccountNotFoundError(f"Account {account_id} was not found.")
+        updated = account.model_copy(update={"name": name, "type": account_type, "balance": balance, "currency": currency})
+        self.accounts[account_id] = updated
+        return updated
+
+    def delete_account(self, account_id: str) -> str:
+        account = self.accounts.get(account_id)
+        if account is None:
+            raise AccountNotFoundError(f"Account {account_id} was not found.")
+        if account.source != "manual":
+            raise AccountConflictError("Only manual accounts can be deleted.")
+        if any(transaction.account_id == account_id for transaction in self.transactions.values()):
+            raise AccountConflictError("Account has transaction history and cannot be deleted.")
+        del self.accounts[account_id]
+        return account_id
 
     def import_csv_rows(self, rows: list[CsvTransactionRow]) -> int:
         created = 0

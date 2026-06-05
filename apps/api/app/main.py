@@ -1,7 +1,7 @@
 import os
 from typing import Literal
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -9,9 +9,9 @@ from app.domain.analytics import build_monthly_summary
 from app.domain.forecast import build_cashflow_forecast
 from app.domain.net_worth import build_net_worth_history
 from app.domain.recurring import detect_recurring_items
-from app.domain.schemas import BudgetSettings, CsvTransactionRow, DashboardSnapshot, NetWorthHistory, Transaction
+from app.domain.schemas import Account, AccountCreateRequest, AccountDeleteResponse, AccountUpdateRequest, BudgetSettings, CsvTransactionRow, DashboardSnapshot, NetWorthHistory, Transaction
 from app.db_store import DatabaseStore
-from app.store import LocalStore
+from app.store import LocalStore, AccountConflictError, AccountNotFoundError
 
 
 class CsvImportRequest(BaseModel):
@@ -65,6 +65,38 @@ def create_app(store: LocalStore | DatabaseStore | None = None) -> FastAPI:
     @app.get("/api/accounts")
     def list_accounts():
         return app.state.store.list_accounts()
+
+    @app.post("/api/accounts", response_model=Account)
+    def create_account(request: AccountCreateRequest) -> Account:
+        return app.state.store.create_account(
+            name=request.name,
+            account_type=request.type,
+            balance=request.balance,
+            currency=request.currency,
+        )
+
+    @app.patch("/api/accounts/{account_id}", response_model=Account)
+    def update_account(account_id: str, request: AccountUpdateRequest) -> Account:
+        try:
+            return app.state.store.update_account(
+                account_id,
+                name=request.name,
+                account_type=request.type,
+                balance=request.balance,
+                currency=request.currency,
+            )
+        except AccountNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.delete("/api/accounts/{account_id}", response_model=AccountDeleteResponse)
+    def delete_account(account_id: str) -> AccountDeleteResponse:
+        try:
+            deleted_account_id = app.state.store.delete_account(account_id)
+        except AccountNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except AccountConflictError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        return AccountDeleteResponse(deleted_account_id=deleted_account_id)
 
     @app.get("/api/transactions", response_model=list[Transaction])
     def list_transactions() -> list[Transaction]:

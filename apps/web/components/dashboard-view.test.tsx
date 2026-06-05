@@ -50,4 +50,11 @@ describe("DashboardView", () => {
     expect(screen.getByRole("button", { name: "Returns" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText(/Mock return view past 1m/)).toBeInTheDocument();
   });
+
+  it("renders the net worth endpoint as an unscaled solid dot", () => {
+    const { container } = render(<DashboardView initialNetWorthHistory={demoNetWorthHistoryByRange["1M"]} snapshot={demoDashboard} />);
+
+    expect(container.querySelector(".net-worth-endpoint-dot")).toBeInTheDocument();
+    expect(container.querySelector("circle.net-worth-endpoint")).not.toBeInTheDocument();
+  });
 });
