@@ -85,6 +85,7 @@ describe("CashView", () => {
     expect(donutChart.closest("a")).toHaveAttribute("href", "/accounts");
     expect(donutChart.querySelectorAll(".cash-donut-segment")).toHaveLength(2);
     expect(donutChart.querySelector(".cash-donut-segment")).toHaveAttribute("stroke-linecap", "round");
+    expect(distribution.getByText("$4,000.00")).toBeInTheDocument();
     expect(distribution.getByText("30.0%")).toBeInTheDocument();
     expect(distribution.getByText("70.0%")).toBeInTheDocument();
     expect(distribution.queryByText("$1,200.00")).not.toBeInTheDocument();

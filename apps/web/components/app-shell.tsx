@@ -68,14 +68,17 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
           </div>
           <nav className="nav-list" aria-label="Primary navigation">
-            {navItems.map((item) => (
-              <Link className={isActiveNavItem(pathname, item.href) ? "nav-active" : undefined} key={item.href} href={item.href}>
-                <span className="nav-icon" aria-hidden="true">
-                  <item.icon />
-                </span>
-                {item.label}
-              </Link>
-            ))}
+            {navItems.map((item) => {
+              const isActive = isActiveNavItem(pathname, item.href);
+              return (
+                <Link aria-current={isActive ? "page" : undefined} className={isActive ? "nav-active" : undefined} key={item.href} href={item.href}>
+                  <span className="nav-icon" aria-hidden="true">
+                    <item.icon />
+                  </span>
+                  {item.label}
+                </Link>
+              );
+            })}
           </nav>
         </aside>
       ) : (

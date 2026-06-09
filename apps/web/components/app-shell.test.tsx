@@ -26,6 +26,8 @@ describe("AppShell", () => {
     expect(logo.querySelector(".brand-trend-arrow")).toBeInTheDocument();
     expect(screen.queryByText("F")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Accounts/ })).toHaveAttribute("href", "/accounts");
+    expect(screen.getByRole("link", { name: /Accounts/ })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: /Accounts/ })).toHaveClass("nav-active");
     expect(screen.queryByRole("link", { name: /Settings/ })).not.toBeInTheDocument();
   });
 });

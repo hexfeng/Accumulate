@@ -2,6 +2,7 @@ import Link from "next/link";
 import React from "react";
 
 import { AccountVisual, accountSubtitle, formatCardBalance, sourceLabel } from "./account-visual";
+import { DistributionDonut } from "./distribution-donut";
 import { formatCurrency } from "@/lib/format";
 import type { Account, CashflowForecast, CashflowForecastPoint, MonthlySummary, Transaction } from "@/lib/types";
 
@@ -169,6 +170,8 @@ function AccountTable({ accounts, empty, title }: { accounts: Account[]; empty: 
 }
 
 function CashDistributionPanel({ items }: { items: CashDistributionItem[] }) {
+  const total = items.reduce((sum, item) => sum + item.amount, 0);
+
   return (
     <article className="panel cash-distribution-panel">
       <div className="panel-heading compact">
@@ -177,7 +180,7 @@ function CashDistributionPanel({ items }: { items: CashDistributionItem[] }) {
       </div>
       <div className="cash-distribution-content">
         <Link className="cash-donut-link" href="/accounts" aria-label="Open accounts from cash distribution">
-          <CashDonutChart items={items} />
+          <DistributionDonut centerLabel="Total cash" items={items} totalLabel={formatCurrency(total)} />
         </Link>
         <div className="cash-distribution-list">
           {items.map((item) => (
@@ -192,41 +195,6 @@ function CashDistributionPanel({ items }: { items: CashDistributionItem[] }) {
         </div>
       </div>
     </article>
-  );
-}
-
-function CashDonutChart({ items }: { items: CashDistributionItem[] }) {
-  const radius = 58;
-  const strokeWidth = 4;
-  const circumference = 2 * Math.PI * radius;
-  let cursor = 0;
-
-  return (
-    <svg className="cash-pie cash-donut" role="img" aria-label={items.map((item) => `${item.label} ${formatPercent(item.percent)}`).join(", ")} viewBox="0 0 120 120">
-      {items.map((item) => {
-        const gapPercent = items.length > 1 ? 2.2 : 0;
-        const visiblePercent = Math.max(0, item.percent - gapPercent);
-        const dashLength = (visiblePercent / 100) * circumference;
-        const dashOffset = -(cursor / 100) * circumference;
-        cursor += item.percent;
-
-        return (
-          <circle
-            className="cash-donut-segment"
-            cx="60"
-            cy="60"
-            fill="none"
-            key={item.label}
-            r={radius}
-            stroke={item.color}
-            strokeDasharray={`${dashLength} ${circumference - dashLength}`}
-            strokeDashoffset={dashOffset}
-            strokeLinecap="round"
-            strokeWidth={strokeWidth}
-          />
-        );
-      })}
-    </svg>
   );
 }
 

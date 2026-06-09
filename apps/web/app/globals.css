@@ -1923,6 +1923,21 @@ th {
   transform-origin: 60px 60px;
 }
 
+.cash-donut-center-value {
+  fill: var(--text);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.cash-donut-center-label {
+  fill: var(--muted);
+  font-size: 5.6px;
+  font-weight: 750;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
 .cash-distribution-list {
   display: grid;
   gap: 12px;
@@ -1955,6 +1970,51 @@ th {
   color: var(--muted);
   font-size: 0.95rem;
   font-variant-numeric: tabular-nums;
+}
+
+.spending-category-distribution {
+  padding-top: 4px;
+}
+
+.spending-category-donut:hover {
+  transform: none;
+}
+
+.spending-distribution-row {
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: inherit;
+  padding: 10px;
+  text-decoration: none;
+}
+
+.spending-distribution-row > span {
+  align-items: center;
+}
+
+.spending-distribution-row > span > span,
+.spending-distribution-row > small {
+  display: grid;
+  gap: 3px;
+}
+
+.spending-distribution-row > span > span {
+  min-width: 0;
+}
+
+.spending-distribution-row > span > span small {
+  color: var(--muted);
+  font-size: var(--fs-small);
+  font-weight: 750;
+}
+
+.spending-distribution-row > small {
+  justify-items: end;
+}
+
+.spending-distribution-row > small b {
+  color: var(--text);
+  font-size: 0.98rem;
 }
 
 .simple-table-row {
@@ -2101,8 +2161,8 @@ body {
 }
 
 .sidebar {
-  background: var(--bg);
-  border-right: 1px solid rgba(227, 227, 227, 0.72);
+  background: #171b22;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
   height: 100vh;
   padding: 24px 16px;
   position: sticky;
@@ -2145,14 +2205,14 @@ body {
 }
 
 .brand strong {
-  color: var(--text);
+  color: #ffffff;
   font-size: 15px;
   font-weight: 650;
   line-height: 1.1;
 }
 
 .brand small {
-  color: var(--text);
+  color: #bac2ce;
   font-size: 11px;
   font-weight: 500;
   margin-top: 3px;
@@ -2197,6 +2257,21 @@ body {
   width: 19px;
 }
 
+.sidebar .theme-toggle,
+.sidebar .sidebar-toggle {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #d7dee9;
+}
+
+.sidebar .theme-toggle:hover,
+.sidebar .sidebar-toggle:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  box-shadow: none;
+}
+
 .floating-shell-controls {
   display: flex;
   gap: 10px;
@@ -2216,8 +2291,8 @@ body {
 
 .nav-list a {
   align-items: center;
-  border-radius: 999px;
-  color: var(--text);
+  border-radius: 8px;
+  color: #c2cad6;
   display: flex;
   font-size: 15px;
   font-weight: 500;
@@ -2227,13 +2302,13 @@ body {
 
 .nav-list a:hover,
 .nav-list a.nav-active {
-  background: #e8eaed;
-  color: var(--text);
+  background: #e7ebf0;
+  color: #171a21;
 }
 
 .nav-icon {
   align-items: center;
-  color: #5f6368;
+  color: #9ca6b5;
   display: inline-flex;
   flex: 0 0 auto;
   height: 20px;
@@ -2254,7 +2329,7 @@ body {
 
 .nav-list a.nav-active .nav-icon,
 .nav-list a:hover .nav-icon {
-  color: var(--primary);
+  color: #171a21;
 }
 
 .main-surface {
@@ -3677,12 +3752,18 @@ body {
 }
 
 .app-shell.theme-dark .sidebar {
-  background: #050505;
-  border-right-color: #242424;
+  background: #171b22;
+  border-right-color: rgba(255, 255, 255, 0.1);
 }
 
-.app-shell.theme-dark .brand strong,
-.app-shell.theme-dark .brand small,
+.app-shell.theme-dark .brand strong {
+  color: #ffffff;
+}
+
+.app-shell.theme-dark .brand small {
+  color: #bac2ce;
+}
+
 .app-shell.theme-dark .hero-net-worth p,
 .app-shell.theme-dark .hero-period,
 .app-shell.theme-dark .metric-card small,
@@ -3697,22 +3778,22 @@ body {
 }
 
 .app-shell.theme-dark .nav-list a {
-  color: #dbe3ee;
+  color: #c2cad6;
 }
 
 .app-shell.theme-dark .nav-list a:hover,
 .app-shell.theme-dark .nav-list a.nav-active {
-  background: #1f1f1f;
-  color: #f5f7fb;
+  background: #e7ebf0;
+  color: #171a21;
 }
 
 .app-shell.theme-dark .nav-icon {
-  color: #95a2b3;
+  color: #9ca6b5;
 }
 
 .app-shell.theme-dark .nav-list a.nav-active .nav-icon,
 .app-shell.theme-dark .nav-list a:hover .nav-icon {
-  color: var(--primary);
+  color: #171a21;
 }
 
 .app-shell.theme-dark .theme-toggle,
@@ -3729,6 +3810,21 @@ body {
   background: #1f1f1f;
   border-color: #4f6f9f;
   color: var(--primary);
+}
+
+.app-shell.theme-dark .sidebar .theme-toggle,
+.app-shell.theme-dark .sidebar .sidebar-toggle {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #d7dee9;
+}
+
+.app-shell.theme-dark .sidebar .theme-toggle:hover,
+.app-shell.theme-dark .sidebar .sidebar-toggle:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  box-shadow: none;
 }
 
 .app-shell.theme-dark .main-surface {
@@ -4401,4 +4497,761 @@ body {
 
 .cash-donut-link:hover {
   transform: translateY(-1px) scale(1.015);
+}
+
+.spending-page {
+  max-width: 1210px;
+}
+
+.spending-hero {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  box-shadow: none;
+  display: grid;
+  gap: 22px;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+  padding: 24px;
+}
+
+.spending-hero-main {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.spending-hero h1 {
+  font-size: var(--fs-page-title);
+  line-height: 1.05;
+  margin: 0;
+}
+
+.spending-hero p {
+  color: var(--muted);
+  font-size: var(--fs-body);
+  margin: 0;
+  max-width: 650px;
+}
+
+.spending-hero-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.spending-hero-chips span {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: var(--fs-small);
+  font-weight: 750;
+  padding: 7px 10px;
+}
+
+.spending-hero-side {
+  display: grid;
+  gap: 12px;
+}
+
+.spending-total-card,
+.spending-budget-row {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+}
+
+.spending-total-card {
+  display: grid;
+  gap: 7px;
+  padding: 16px;
+}
+
+.spending-total-card span,
+.spending-budget-row span {
+  color: var(--muted);
+  font-size: var(--fs-label);
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.spending-total-card strong {
+  font-size: var(--fs-primary-money);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.spending-total-card small,
+.spending-budget-row small {
+  color: var(--muted);
+  font-size: var(--fs-small);
+}
+
+.spending-budget-row {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 13px 14px;
+}
+
+.spending-budget-row div {
+  display: grid;
+  gap: 5px;
+}
+
+.spending-budget-row strong {
+  font-size: 1rem;
+}
+
+.spending-budget-row button,
+.account-spend-panel .panel-heading button {
+  background: var(--primary);
+  border: 1px solid rgba(11, 87, 208, 0.18);
+  border-radius: 999px;
+  color: #ffffff;
+  cursor: pointer;
+  font-weight: 800;
+  padding: 9px 12px;
+}
+
+.spending-budget-row button:hover,
+.account-spend-panel .panel-heading button:hover {
+  background: var(--primary-hover);
+}
+
+.spending-summary-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.recurring-metric {
+  border: 1px solid var(--border);
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.recurring-metric:hover {
+  border-color: var(--primary);
+  transform: translateY(-1px);
+}
+
+.spending-main-grid,
+.spending-detail-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.9fr);
+}
+
+.spending-trend-panel,
+.account-spend-panel {
+  min-height: 270px;
+}
+
+.budget-overview-topline {
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 72px;
+  padding-bottom: 16px;
+}
+
+.spending-chart-toggle {
+  align-self: center;
+  background: #eff1f3;
+  border-radius: 13px;
+  padding: 4px;
+}
+
+.spending-chart-toggle button {
+  border-radius: 9px;
+  min-width: 96px;
+  padding: 8px 12px;
+}
+
+.spending-chart-toggle button[aria-pressed="true"] {
+  background: var(--surface);
+  box-shadow: 0 1px 4px rgba(31, 31, 31, 0.12);
+}
+
+.budget-overview-header {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.budget-overview-header div {
+  border-left: 3px solid var(--border);
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding-left: 10px;
+}
+
+.budget-overview-header div:nth-child(1) {
+  border-left-color: rgba(20, 125, 100, 0.18);
+}
+
+.budget-overview-header div:nth-child(2) {
+  border-left-color: var(--green);
+}
+
+.budget-overview-header div:nth-child(3) {
+  border-left-color: #1f2a25;
+}
+
+.budget-overview-header small {
+  color: var(--muted);
+  font-size: var(--fs-small);
+  font-weight: 750;
+}
+
+.budget-overview-header strong {
+  font-size: 1.18rem;
+}
+
+.budget-dot {
+  border-radius: 999px;
+  display: block;
+  height: 7px;
+  width: 28px;
+}
+
+.budget-dot.income,
+.budget-overview-legend i.income,
+.budget-overview-bars span.income {
+  background: rgba(20, 125, 100, 0.16);
+}
+
+.budget-dot.expense,
+.budget-overview-legend i.expense,
+.budget-overview-bars span.expense {
+  background: var(--green);
+}
+
+.budget-dot.outcome,
+.budget-overview-legend i.outcome {
+  background: #1f2a25;
+}
+
+.budget-dot.budget,
+.budget-overview-legend i.budget {
+  background: rgba(20, 125, 100, 0.3);
+}
+
+.budget-overview-legend {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  justify-content: flex-end;
+  min-height: 20px;
+}
+
+.budget-overview-legend span {
+  align-items: center;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: var(--fs-small);
+  font-weight: 750;
+  gap: 5px;
+}
+
+.budget-overview-legend i {
+  border-radius: 999px;
+  height: 8px;
+  width: 8px;
+}
+
+.budget-overview-chart-shell {
+  display: grid;
+  gap: 14px;
+  padding-top: 4px;
+}
+
+.budget-overview-chart {
+  align-items: end;
+  background:
+    repeating-linear-gradient(
+      to top,
+      transparent 0,
+      transparent 43px,
+      rgba(20, 125, 100, 0.13) 44px
+    );
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  min-height: 238px;
+  padding: 28px 4px 0;
+  position: relative;
+}
+
+.budget-overview-line {
+  border-top: 2px solid rgba(20, 125, 100, 0.36);
+  left: 4px;
+  pointer-events: none;
+  position: absolute;
+  right: 4px;
+  z-index: 0;
+}
+
+.budget-overview-month {
+  align-items: end;
+  display: grid;
+  gap: 9px;
+  justify-items: center;
+  min-width: 0;
+}
+
+.budget-overview-bars {
+  align-items: end;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(2, 18px);
+  height: 180px;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+}
+
+.budget-overview-bars span {
+  border: 1px solid rgba(20, 125, 100, 0.12);
+  border-radius: 7px 7px 2px 2px;
+  display: block;
+  min-height: 5px;
+  width: 18px;
+}
+
+.budget-overview-bars span.income {
+  box-shadow: inset 0 -1px 0 rgba(20, 125, 100, 0.1);
+}
+
+.budget-overview-bars span.expense {
+  box-shadow: 0 8px 18px rgba(20, 108, 46, 0.12);
+}
+
+.budget-overview-month small {
+  color: var(--muted);
+  font-size: var(--fs-small);
+  font-weight: 800;
+}
+
+.weekly-spend-trend {
+  display: grid;
+  gap: 12px;
+  min-height: 238px;
+  padding: 18px 0 0;
+}
+
+.weekly-spend-line-chart {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  height: 210px;
+  min-height: 185px;
+  overflow: hidden;
+  position: relative;
+}
+
+.weekly-spend-line-chart svg {
+  display: block;
+  height: 100%;
+  width: 100%;
+}
+
+.weekly-spend-grid line {
+  stroke: #dfe7e3;
+  stroke-dasharray: 2 4;
+  stroke-linecap: round;
+  stroke-width: 0.8;
+  vector-effect: non-scaling-stroke;
+}
+
+.weekly-spend-area {
+  fill: url(#weeklySpendArea);
+}
+
+.weekly-spend-line {
+  fill: none;
+  stroke: var(--green);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3.2;
+  vector-effect: non-scaling-stroke;
+}
+
+.weekly-spend-line-underlay {
+  fill: none;
+  opacity: 0.32;
+  stroke: #ffffff;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 6;
+  vector-effect: non-scaling-stroke;
+}
+
+.weekly-spend-endpoint-dot {
+  background: var(--green);
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px var(--surface);
+  height: 10px;
+  pointer-events: none;
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 10px;
+  z-index: 2;
+}
+
+.weekly-spend-axis {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.weekly-spend-axis span {
+  color: var(--muted);
+  font-size: var(--fs-small);
+  font-weight: 800;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+.account-spend-list {
+  display: grid;
+  gap: 8px;
+}
+
+.account-spend-row {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 12px;
+  text-align: left;
+}
+
+.account-spend-row:hover,
+.account-spend-row.active {
+  background: var(--surface-strong);
+  border-color: var(--primary);
+}
+
+.account-spending-metrics article,
+.account-transaction-row span {
+  display: grid;
+  gap: 3px;
+}
+
+.account-spend-identity {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+}
+
+.account-spend-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.account-spend-copy strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-spend-copy small {
+  color: var(--muted);
+  font-size: var(--fs-small);
+}
+
+.account-spend-row > b {
+  flex: 0 0 auto;
+}
+
+.category-link-row,
+.list-link-row {
+  color: inherit;
+  text-decoration: none;
+  transition: background-color 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+
+.category-link-row:hover,
+.list-link-row:hover {
+  background: var(--surface-strong);
+  border-color: var(--primary);
+  transform: translateY(-1px);
+}
+
+.spending-category-chart .category-row {
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  grid-template-columns: minmax(140px, 0.9fr) minmax(110px, 1fr) auto;
+  padding: 10px;
+}
+
+.spending-category-chart .category-row span {
+  display: grid;
+  gap: 3px;
+}
+
+.spending-category-chart .category-row small,
+.panel-heading.compact > span {
+  color: var(--muted);
+  font-size: var(--fs-small);
+  font-weight: 750;
+}
+
+.budget-dialog {
+  max-width: 460px;
+}
+
+.budget-input-row {
+  display: grid;
+  gap: 8px;
+}
+
+.budget-input-row span {
+  color: var(--muted);
+  font-size: var(--fs-label);
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.budget-input-row input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+  padding: 11px 12px;
+}
+
+.recurring-dialog {
+  max-width: 980px;
+  width: min(980px, calc(100vw - 44px));
+}
+
+.recurring-calendar-grid {
+  display: grid;
+  gap: 1px;
+  grid-auto-rows: minmax(112px, auto);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  max-height: 66vh;
+  overflow: auto;
+  padding: 1px;
+}
+
+.recurring-weekday {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+  padding: 0 8px 8px;
+  text-align: right;
+}
+
+.recurring-calendar-day {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  display: grid;
+  gap: 8px;
+  min-height: 112px;
+  align-content: start;
+  padding: 8px;
+}
+
+.recurring-calendar-day.empty {
+  background: var(--bg);
+}
+
+.recurring-calendar-day > span {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 750;
+  justify-self: end;
+}
+
+.recurring-calendar-item {
+  background: #eef7f5;
+  border: 1px solid rgba(20, 125, 100, 0.16);
+  border-radius: 7px;
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 7px 8px;
+}
+
+.recurring-calendar-item strong {
+  font-size: 0.82rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recurring-calendar-item small,
+.recurring-calendar-item a {
+  font-size: 0.74rem;
+}
+
+.recurring-calendar-item a {
+  color: var(--primary);
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.account-spending-dialog {
+  max-width: 860px;
+  width: min(860px, calc(100vw - 44px));
+}
+
+.account-spending-metrics {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.account-spending-metrics article {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 13px;
+}
+
+.account-spending-metrics span {
+  color: var(--muted);
+  font-size: var(--fs-label);
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.account-spending-metrics strong {
+  font-size: 1.2rem;
+}
+
+.account-spending-metrics small {
+  color: var(--muted);
+  font-size: var(--fs-small);
+}
+
+.account-dialog-section {
+  display: grid;
+  gap: 12px;
+}
+
+.account-dialog-section .panel-heading.compact {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 10px;
+}
+
+.account-dialog-section h3 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.account-transaction-list {
+  display: grid;
+  gap: 8px;
+  max-height: 300px;
+  overflow: auto;
+}
+
+.account-transaction-row {
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 10px 12px;
+}
+
+.account-transaction-row small {
+  color: var(--muted);
+  font-size: var(--fs-small);
+}
+
+.app-shell.theme-dark .spending-hero,
+.app-shell.theme-dark .spending-total-card {
+  background: var(--surface);
+}
+
+@media (max-width: 1000px) {
+  .spending-hero,
+  .spending-main-grid,
+  .spending-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .spending-summary-grid,
+  .account-spending-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .spending-hero {
+    padding: 22px;
+  }
+
+  .spending-summary-grid,
+  .account-spending-metrics,
+  .budget-overview-header {
+    grid-template-columns: 1fr;
+  }
+
+  .budget-overview-topline {
+    align-items: start;
+    grid-template-columns: 1fr;
+  }
+
+  .budget-overview-chart {
+    gap: 10px;
+  }
+
+  .budget-overview-legend {
+    align-items: flex-start;
+    justify-content: flex-start;
+  }
+
+  .spending-chart-toggle {
+    justify-self: start;
+  }
+
+  .budget-overview-bars {
+    gap: 4px;
+    grid-template-columns: repeat(2, 12px);
+  }
+
+  .budget-overview-bars span {
+    width: 12px;
+  }
+
+  .weekly-spend-axis {
+    gap: 5px;
+  }
+
+  .recurring-calendar-grid {
+    grid-auto-rows: minmax(96px, auto);
+  }
+
+  .spending-category-chart .category-row {
+    align-items: start;
+    grid-template-columns: 1fr;
+  }
 }
