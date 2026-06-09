@@ -19,7 +19,10 @@ describe("DashboardView", () => {
     expect(screen.getByText("Accounts")).toBeInTheDocument();
     expect(screen.getByText("Recap")).toBeInTheDocument();
     expect(screen.getByText("Risk")).toBeInTheDocument();
-    expect(screen.getByText("Needs attention")).toBeInTheDocument();
+    expect(screen.getByText("Spending Summary")).toBeInTheDocument();
+    expect(screen.getByText("Spent")).toBeInTheDocument();
+    expect(screen.getByText("Your monthly spending limit is $2,000.")).toBeInTheDocument();
+    expect(screen.queryByText("Needs attention")).not.toBeInTheDocument();
     expect(screen.getByText("Cashflow forecast")).toBeInTheDocument();
     expect(screen.getByText("Spending insight")).toBeInTheDocument();
     expect(screen.getByText("Recap / goal")).toBeInTheDocument();

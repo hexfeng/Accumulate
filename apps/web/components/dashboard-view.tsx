@@ -18,6 +18,8 @@ type KpiCardProps = {
   value: string;
 };
 
+const MONTHLY_SPENDING_LIMIT = 2_000;
+
 const DEFAULT_GOAL = {
   name: "FIRE",
   targetAmount: 1_500_000
@@ -136,36 +138,11 @@ export function DashboardView({ initialNetWorthHistory, snapshot }: Props) {
 
       <div className="dashboard-main-grid">
         <NetWorthTrendPanel initialHistory={initialNetWorthHistory} />
-        <article className="panel attention-panel">
-          <div className="panel-heading">
-            <div>
-              <h2>
-                <svg aria-hidden="true" viewBox="0 0 24 24">
-                  <path d="M12 2L15 9l7 3-7 3-3 7-3-7-7-3 7-3z" />
-                </svg>
-                Needs attention
-              </h2>
-              <p>Highest priority tasks and signals.</p>
-            </div>
-          </div>
-          <div className="attention-list">
-            {topCategory ? (
-              <AttentionItem
-                href={`/spending?category=${encodeURIComponent(topCategory.category)}`}
-                tone="amber"
-                title={`${topCategory.category} near budget`}
-                description={`${formatPercent(topCategory.budget_used_pct ?? 0)} used \u00b7 view spending`}
-              />
-            ) : null}
-            <AttentionItem href="/investments" tone="indigo" title="Add holdings" description="Complete net worth tracking" />
-            <AttentionItem
-              href={`/recap?period=${snapshot.monthly_summary.month}`}
-              tone="green"
-              title="Monthly recap ready"
-              description={`${currentPeriod} summary is ready`}
-            />
-          </div>
-        </article>
+        <MonthlySpendingSummaryCard
+          income={snapshot.monthly_summary.total_income}
+          monthlyBudget={snapshot.monthly_summary.monthly_budget}
+          spending={snapshot.monthly_summary.total_spending}
+        />
       </div>
 
       <div className="secondary-insight-grid">
@@ -236,18 +213,66 @@ function DashboardKpiCard({ href, label, meta, tone, value }: KpiCardProps) {
   );
 }
 
-function AttentionItem({ description, href, title, tone }: { description: string; href: string; title: string; tone: "amber" | "green" | "indigo" }) {
+function MonthlySpendingSummaryCard({ income, monthlyBudget, spending }: { income: number; monthlyBudget: number; spending: number }) {
+  const remainingBudget = Math.max(monthlyBudget - spending, 0);
+  const total = Math.max(spending + income + remainingBudget, 1);
+  const spentPct = Math.min((spending / Math.max(monthlyBudget, 1)) * 100, 100);
+  const monthlyLimitLabel = formatCurrency(MONTHLY_SPENDING_LIMIT).replace(".00", "");
+  const segments = buildSpendingSummarySegments({
+    incomePct: (income / total) * 100,
+    otherPct: (remainingBudget / total) * 100,
+    outcomePct: (spending / total) * 100
+  });
+
   return (
-    <Link className="attention-item" href={href}>
-      <span className={`attention-dot tone-${tone}`} />
-      <span>
-        <strong>{title}</strong>
-        <small>
-          {description} <em aria-hidden="true">{"\u2192"}</em>
-        </small>
-      </span>
-    </Link>
+    <article className="panel monthly-spending-summary" aria-label="Monthly spending summary">
+      <div className="spending-summary-card-header">
+        <div className="spending-summary-title">
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="8.5" />
+            <path d="M12 6.8v5.5l4.2 2.4" />
+          </svg>
+          <h2>Spending Summary</h2>
+        </div>
+        <Link href="/spending">More Option</Link>
+      </div>
+
+      <div className="spending-summary-gauge" aria-label={`Spent ${formatCurrency(spending)}, ${formatPercent(spentPct)} of monthly budget`} role="img">
+        <div className="spending-summary-arc" aria-hidden="true">
+          {segments.map((segment, index) => (
+            <span className={`segment-${segment}`} key={`${segment}-${index}`} style={{ "--segment-index": index } as React.CSSProperties} />
+          ))}
+        </div>
+        <div className="spending-summary-center">
+          <span>Spent</span>
+          <strong>{formatCurrency(spending)}</strong>
+        </div>
+      </div>
+
+      <div className="spending-summary-legend" aria-label="Spending summary legend">
+        <span><i className="outcome" />Outcome</span>
+        <span><i className="income" />Income</span>
+        <span><i className="other" />Others</span>
+      </div>
+
+      <div className="spending-summary-note">
+        <span>Your monthly spending limit is {monthlyLimitLabel}.</span>
+        <Link href="/spending" aria-label="Open spending summary details">i</Link>
+      </div>
+    </article>
   );
+}
+
+function buildSpendingSummarySegments({ incomePct, otherPct, outcomePct }: { incomePct: number; otherPct: number; outcomePct: number }) {
+  const segmentCount = 31;
+  const outcomeSegments = Math.max(2, Math.round((outcomePct / 100) * segmentCount));
+  const incomeSegments = Math.max(2, Math.round((incomePct / 100) * segmentCount));
+  const otherSegments = Math.max(0, segmentCount - outcomeSegments - incomeSegments);
+  return [
+    ...Array.from({ length: outcomeSegments }, () => "outcome"),
+    ...Array.from({ length: incomeSegments }, () => "income"),
+    ...Array.from({ length: otherSegments }, () => "other")
+  ];
 }
 
 function getYesterdayChange(history: NetWorthHistory, currentValue: number) {
