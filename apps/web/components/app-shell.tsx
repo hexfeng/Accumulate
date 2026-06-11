@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 
+type ThemeMode = "light" | "dark";
+
 const navItems = [
   { href: "/dashboard", icon: DashboardIcon, label: "Dashboard" },
   { href: "/cash", icon: CashIcon, label: "Cash" },
@@ -12,20 +14,21 @@ const navItems = [
   { href: "/investments", icon: InvestmentsIcon, label: "Investments" },
   { href: "/recap", icon: RecapIcon, label: "Recap" },
   { href: "/transactions", icon: TransactionsIcon, label: "Transactions" },
-  { href: "/accounts", icon: AccountsIcon, label: "Accounts" }
+  { href: "/accounts", icon: AccountsIcon, label: "Accounts" },
+  { href: "/settings", icon: SettingsIcon, label: "Settings" }
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [theme, setTheme] = useState<ThemeMode>("light");
 
   useEffect(() => {
-    const saved = window.localStorage.getItem("finsight-sidebar-open");
+    const saved = readStoredPreference("finsight-sidebar-open");
     if (saved) {
       setSidebarOpen(saved === "true");
     }
-    const savedTheme = window.localStorage.getItem("finsight-theme");
+    const savedTheme = readStoredPreference("finsight-theme");
     if (savedTheme === "dark" || savedTheme === "light") {
       setTheme(savedTheme);
     } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
@@ -35,13 +38,13 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   function updateSidebar(open: boolean) {
     setSidebarOpen(open);
-    window.localStorage.setItem("finsight-sidebar-open", String(open));
+    writeStoredPreference("finsight-sidebar-open", String(open));
   }
 
   function toggleTheme() {
     const nextTheme = theme === "dark" ? "light" : "dark";
     setTheme(nextTheme);
-    window.localStorage.setItem("finsight-theme", nextTheme);
+    writeStoredPreference("finsight-theme", nextTheme);
   }
 
   return (
@@ -94,6 +97,28 @@ export function AppShell({ children }: { children: ReactNode }) {
       <main className="main-surface">{children}</main>
     </div>
   );
+}
+
+function readStoredPreference(key: string) {
+  try {
+    return window.localStorage?.getItem(key) ?? readCookiePreference(key);
+  } catch {
+    return readCookiePreference(key);
+  }
+}
+
+function writeStoredPreference(key: string, value: string) {
+  try {
+    window.localStorage?.setItem(key, value);
+  } catch {
+    // Cookie fallback below keeps theme/sidebar state stable in restricted browser contexts.
+  }
+  document.cookie = `${key}=${encodeURIComponent(value)}; path=/; max-age=31536000; SameSite=Lax`;
+}
+
+function readCookiePreference(key: string) {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${key}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
 }
 
 function BrandLogoIcon() {
@@ -215,6 +240,15 @@ function AccountsIcon() {
       <rect x="4" y="5" width="16" height="14" rx="3" />
       <path d="M8 9h8M8 13h5" />
       <circle cx="17" cy="15.5" r="1.5" />
+    </svg>
+  );
+}
+
+function SettingsIcon() {
+  return (
+    <svg viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 4v2M12 18v2M4 12h2M18 12h2M6.4 6.4l1.4 1.4M16.2 16.2l1.4 1.4M17.6 6.4l-1.4 1.4M7.8 16.2l-1.4 1.4" />
     </svg>
   );
 }

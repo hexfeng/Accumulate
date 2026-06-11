@@ -11,6 +11,7 @@ class Account(BaseModel):
     type: str
     balance: float
     currency: str = "CAD"
+    institution_name: str | None = None
     source: str = "manual"
     last_synced_at: str | None = None
 
@@ -31,6 +32,50 @@ class AccountUpdateRequest(BaseModel):
 
 class AccountDeleteResponse(BaseModel):
     deleted_account_id: str
+
+
+class SimpleFinConnectRequest(BaseModel):
+    setup_token: str | None = None
+
+
+class SimpleFinStatus(BaseModel):
+    provider: str = "simplefin"
+    status: str
+    mode: str = "real"
+    message: str
+    has_credentials: bool = False
+    last_synced_at: str | None = None
+    last_error: str | None = None
+    retry_count: int = 0
+    next_retry_at: str | None = None
+
+
+class Holding(BaseModel):
+    id: str
+    user_id: str
+    account_id: str
+    account_name: str
+    symbol: str
+    name: str
+    quantity: float
+    average_cost: float
+    market_price: float
+    currency: str = "CAD"
+    source: str = "manual"
+
+
+class HoldingRequest(BaseModel):
+    account_id: str
+    symbol: str
+    name: str
+    quantity: float
+    average_cost: float
+    market_price: float
+    currency: str = "CAD"
+
+
+class HoldingDeleteResponse(BaseModel):
+    deleted_holding_id: str
 
 
 class CsvTransactionRow(BaseModel):
@@ -142,6 +187,28 @@ class NetWorthHistory(BaseModel):
     change_amount: float
     change_pct: float
     points: list[NetWorthHistoryPoint]
+
+
+class AssetAllocationItem(BaseModel):
+    label: str
+    value: float
+    percent: float
+
+
+class PortfolioAccountSummary(BaseModel):
+    account_id: str
+    account_name: str
+    value: float
+    holdings_count: int
+
+
+class PortfolioSnapshot(BaseModel):
+    total_value: float
+    total_cost: float
+    unrealized_gain: float
+    unrealized_gain_pct: float
+    allocation: list[AssetAllocationItem]
+    accounts: list[PortfolioAccountSummary]
 
 
 class DashboardSnapshot(BaseModel):

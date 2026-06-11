@@ -1,13 +1,14 @@
 from datetime import date
 import json
+from typing import Any
 
-from sqlalchemy import JSON, Boolean, Column, Date, Float, MetaData, String, Table, create_engine, delete, insert, select, update
+from sqlalchemy import JSON, Boolean, Column, Date, Float, MetaData, String, Table, create_engine, delete, inspect, insert, select, text, update
 from sqlalchemy.engine import Engine
 
 from app.domain.categorization import DEFAULT_RULES, categorize_transaction
 from app.domain.normalization import normalize_csv_transaction
-from app.domain.schemas import Account, BudgetSettings, CategoryRule, CsvTransactionRow, Transaction
-from app.store import LOCAL_USER_ID, AccountConflictError, AccountNotFoundError
+from app.domain.schemas import Account, BudgetSettings, CategoryRule, CsvTransactionRow, Holding, PortfolioSnapshot, Transaction
+from app.store import LOCAL_USER_ID, AccountConflictError, AccountNotFoundError, _build_portfolio_snapshot, _clean_simplefin_account_name, _infer_simplefin_account_type, _money, _simplefin_account_institution, _simplefin_connection_names, _simplefin_institution_overrides, _simplefin_transaction_date, _slug
 
 
 metadata = MetaData()
@@ -21,6 +22,7 @@ accounts = Table(
     Column("type", String, nullable=False),
     Column("balance", Float, nullable=False, default=0),
     Column("currency", String, nullable=False, default="CAD"),
+    Column("institution_name", String),
     Column("source", String, nullable=False),
     Column("last_synced_at", String),
 )
@@ -40,6 +42,7 @@ transactions = Table(
     Column("merchant_normalized", String),
     Column("description_raw", String, nullable=False),
     Column("source", String, nullable=False),
+    Column("external_id", String),
     Column("category", String),
     Column("subcategory", String),
     Column("transaction_type", String),
@@ -47,6 +50,22 @@ transactions = Table(
     Column("is_recurring", Boolean, nullable=False, default=False),
     Column("confidence", Float),
     Column("duplicate_hash", String, unique=True),
+)
+
+holdings = Table(
+    "holdings",
+    metadata,
+    Column("id", String, primary_key=True),
+    Column("user_id", String, nullable=False),
+    Column("account_id", String, nullable=False),
+    Column("account_name", String, nullable=False),
+    Column("symbol", String, nullable=False),
+    Column("name", String, nullable=False),
+    Column("quantity", Float, nullable=False),
+    Column("average_cost", Float, nullable=False),
+    Column("market_price", Float, nullable=False),
+    Column("currency", String, nullable=False, default="CAD"),
+    Column("source", String, nullable=False, default="manual"),
 )
 
 category_rules = Table(
@@ -75,6 +94,7 @@ class DatabaseStore:
     def __init__(self, database_url: str):
         self.engine = create_engine(database_url, future=True)
         metadata.create_all(self.engine)
+        self._ensure_schema_updates()
         self._ensure_settings()
 
     @classmethod
@@ -82,8 +102,21 @@ class DatabaseStore:
         instance = cls.__new__(cls)
         instance.engine = engine
         metadata.create_all(engine)
+        instance._ensure_schema_updates()
         instance._ensure_settings()
         return instance
+
+    def _ensure_schema_updates(self) -> None:
+        inspector = inspect(self.engine)
+        if "transactions" not in inspector.get_table_names():
+            return
+        transaction_columns = {column["name"] for column in inspector.get_columns("transactions")}
+        account_columns = {column["name"] for column in inspector.get_columns("accounts")}
+        with self.engine.begin() as connection:
+            if "institution_name" not in account_columns:
+                connection.execute(text("ALTER TABLE accounts ADD COLUMN institution_name VARCHAR"))
+            if "external_id" not in transaction_columns:
+                connection.execute(text("ALTER TABLE transactions ADD COLUMN external_id VARCHAR"))
 
     def _ensure_settings(self) -> None:
         with self.engine.begin() as connection:
@@ -123,6 +156,7 @@ class DatabaseStore:
 
     def reset(self) -> None:
         with self.engine.begin() as connection:
+            connection.execute(delete(holdings))
             connection.execute(delete(transactions))
             connection.execute(delete(accounts))
             connection.execute(delete(category_rules))
@@ -162,6 +196,71 @@ class DatabaseStore:
     def create_account(self, name: str, account_type: str, balance: float = 0, currency: str = "CAD") -> Account:
         return self.upsert_account(name=name, account_type=account_type, balance=balance, currency=currency, source="manual")
 
+    def import_simplefin_account_set(self, account_set: dict[str, Any], synced_at: str) -> dict[str, int]:
+        created_transactions = 0
+        connection_names = _simplefin_connection_names(account_set)
+        institution_overrides = _simplefin_institution_overrides()
+        with self.engine.begin() as connection:
+            for item in account_set.get("accounts", []):
+                external_account_id = str(item.get("id") or "")
+                if not external_account_id:
+                    continue
+                connection_id = str(item.get("conn_id") or "connection")
+                account_id = f"simplefin-{_slug(connection_id)}-{_slug(external_account_id)}"
+                institution_name = _simplefin_account_institution(item, account_id, connection_names, institution_overrides)
+                raw_name = str(item.get("name") or external_account_id)
+                account_type = _infer_simplefin_account_type(raw_name)
+                name = _clean_simplefin_account_name(raw_name, account_type, institution_name)
+                balance = _money(float(item.get("balance") or 0))
+                currency = str(item.get("currency") or "CAD").upper()
+                existing = connection.execute(select(accounts.c.id).where(accounts.c.id == account_id)).first()
+                values = {
+                    "id": account_id,
+                    "user_id": LOCAL_USER_ID,
+                    "name": name,
+                    "type": account_type,
+                    "balance": balance,
+                    "currency": currency,
+                    "institution_name": institution_name,
+                    "source": "simplefin",
+                    "last_synced_at": synced_at,
+                }
+                if existing:
+                    connection.execute(update(accounts).where(accounts.c.id == account_id).values(**values))
+                else:
+                    connection.execute(insert(accounts).values(**values))
+
+                for raw_transaction in item.get("transactions", []):
+                    external_transaction_id = str(raw_transaction.get("id") or "")
+                    if not external_transaction_id:
+                        continue
+                    duplicate_hash = f"simplefin:{account_id}:{external_transaction_id}"
+                    exists = connection.execute(select(transactions.c.id).where(transactions.c.duplicate_hash == duplicate_hash)).first()
+                    if exists:
+                        continue
+                    description = str(raw_transaction.get("description") or "SimpleFIN transaction")
+                    transaction = Transaction(
+                        id=duplicate_hash,
+                        user_id=LOCAL_USER_ID,
+                        account_id=account_id,
+                        account_name=name,
+                        account_type=account_type,
+                        transaction_date=_simplefin_transaction_date(raw_transaction),
+                        amount=_money(float(raw_transaction.get("amount") or 0)),
+                        currency=currency,
+                        merchant_raw=description,
+                        description_raw=description,
+                        source="simplefin",
+                        external_id=external_transaction_id,
+                        duplicate_hash=duplicate_hash,
+                    )
+                    categorized = categorize_transaction(transaction, self._rules())
+                    data = _table_values(transactions, categorized.model_dump())
+                    data["id"] = categorized.duplicate_hash or categorized.id
+                    connection.execute(insert(transactions).values(**data))
+                    created_transactions += 1
+        return {"accounts": len(account_set.get("accounts", [])), "created_transactions": created_transactions}
+
     def update_account(self, account_id: str, name: str, account_type: str, balance: float, currency: str = "CAD") -> Account:
         with self.engine.begin() as connection:
             row = connection.execute(select(accounts).where(accounts.c.id == account_id)).mappings().first()
@@ -180,9 +279,95 @@ class DatabaseStore:
             account_row = connection.execute(select(accounts).where(accounts.c.id == account_id)).mappings().first()
             if account_row is None:
                 raise AccountNotFoundError(f"Account {account_id} was not found.")
+            connection.execute(delete(holdings).where(holdings.c.account_id == account_id))
             connection.execute(delete(transactions).where(transactions.c.account_id == account_id))
             connection.execute(delete(accounts).where(accounts.c.id == account_id))
         return account_id
+
+    def list_holdings(self) -> list[Holding]:
+        with self.engine.begin() as connection:
+            rows = connection.execute(select(holdings).order_by(holdings.c.account_name, holdings.c.symbol)).mappings().all()
+        return [Holding(**dict(row)) for row in rows]
+
+    def create_holding(
+        self,
+        account_id: str,
+        symbol: str,
+        name: str,
+        quantity: float,
+        average_cost: float,
+        market_price: float,
+        currency: str = "CAD",
+    ) -> Holding:
+        with self.engine.begin() as connection:
+            account_row = connection.execute(select(accounts).where(accounts.c.id == account_id)).mappings().first()
+            if account_row is None:
+                raise AccountNotFoundError(f"Account {account_id} was not found.")
+            holding_id = _slug(symbol)
+            connection.execute(delete(holdings).where(holdings.c.id == holding_id))
+            connection.execute(
+                insert(holdings).values(
+                    id=holding_id,
+                    user_id=LOCAL_USER_ID,
+                    account_id=account_id,
+                    account_name=account_row["name"],
+                    symbol=symbol.strip().upper(),
+                    name=name,
+                    quantity=quantity,
+                    average_cost=average_cost,
+                    market_price=market_price,
+                    currency=currency,
+                    source="manual",
+                )
+            )
+            row = connection.execute(select(holdings).where(holdings.c.id == holding_id)).mappings().one()
+        return Holding(**dict(row))
+
+    def update_holding(
+        self,
+        holding_id: str,
+        account_id: str,
+        symbol: str,
+        name: str,
+        quantity: float,
+        average_cost: float,
+        market_price: float,
+        currency: str = "CAD",
+    ) -> Holding:
+        with self.engine.begin() as connection:
+            existing = connection.execute(select(holdings).where(holdings.c.id == holding_id)).mappings().first()
+            if existing is None:
+                raise AccountNotFoundError(f"Holding {holding_id} was not found.")
+            account_row = connection.execute(select(accounts).where(accounts.c.id == account_id)).mappings().first()
+            if account_row is None:
+                raise AccountNotFoundError(f"Account {account_id} was not found.")
+            connection.execute(
+                update(holdings)
+                .where(holdings.c.id == holding_id)
+                .values(
+                    account_id=account_id,
+                    account_name=account_row["name"],
+                    symbol=symbol.strip().upper(),
+                    name=name,
+                    quantity=quantity,
+                    average_cost=average_cost,
+                    market_price=market_price,
+                    currency=currency,
+                )
+            )
+            row = connection.execute(select(holdings).where(holdings.c.id == holding_id)).mappings().one()
+        return Holding(**dict(row))
+
+    def delete_holding(self, holding_id: str) -> str:
+        with self.engine.begin() as connection:
+            existing = connection.execute(select(holdings).where(holdings.c.id == holding_id)).mappings().first()
+            if existing is None:
+                raise AccountNotFoundError(f"Holding {holding_id} was not found.")
+            connection.execute(delete(holdings).where(holdings.c.id == holding_id))
+        return holding_id
+
+    def portfolio_snapshot(self) -> PortfolioSnapshot:
+        return _build_portfolio_snapshot(self.list_holdings())
 
     def import_csv_rows(self, rows: list[CsvTransactionRow]) -> int:
         created = 0
@@ -247,10 +432,6 @@ class DatabaseStore:
                 CsvTransactionRow(account_name="CIBC Visa", account_type="credit_card", transaction_date="2026-05-22", description="UBER EATS TORONTO", amount="-48.10", currency="CAD"),
             ]
         )
-
-
-def _slug(value: str) -> str:
-    return "-".join(part for part in "".join(ch.lower() if ch.isalnum() else " " for ch in value).split())
 
 
 def _table_values(table: Table, values: dict) -> dict:

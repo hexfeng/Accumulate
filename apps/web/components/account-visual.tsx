@@ -30,7 +30,8 @@ const INSTITUTIONS: InstitutionAsset[] = [
 ];
 
 export function AccountVisual({ account }: { account: Account }) {
-  const institution = findInstitution(account.name);
+  const institutionName = account.institution_name ?? account.name;
+  const institution = findInstitution(`${institutionName} ${account.name}`);
 
   if (account.type === "credit_card") {
     if (institution?.card) {
@@ -57,10 +58,10 @@ export function AccountVisual({ account }: { account: Account }) {
     );
   }
 
-  const institutionName = institution?.displayName ?? getInstitutionName(account.name);
+  const fallbackInstitutionName = institution?.displayName ?? getInstitutionName(institutionName);
   return (
     <span className={`account-visual bank-visual ${institution?.tone ?? "visual-bank-default"}`} aria-hidden="true">
-      {institutionName.slice(0, 1)}
+      {fallbackInstitutionName.slice(0, 1)}
     </span>
   );
 }

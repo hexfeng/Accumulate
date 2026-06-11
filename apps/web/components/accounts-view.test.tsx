@@ -43,6 +43,64 @@ describe("AccountsView", () => {
     expect(screen.queryByRole("button", { name: "Delete CSV Card" })).not.toBeInTheDocument();
   });
 
+  it("uses the synced institution name for account logos when the account name is generic", () => {
+    const { container } = render(
+      <AccountsView
+        initialAccounts={[
+          {
+            id: "simplefin-connection-checking",
+            user_id: "local-user",
+            name: "Chequing (6151)",
+            type: "checking",
+            balance: 3050.63,
+            currency: "CAD",
+            institution_name: "CIBC",
+            source: "simplefin"
+          }
+        ]}
+        initialSimpleFinStatus={{ ...simpleFinStatus, provider: "simplefin", mode: "real", status: "synced" }}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Open Chequing (6151) account" })).toBeInTheDocument();
+    expect(container.querySelector('img[src="/institutions/logos/cibc.jpg"]')).toBeInTheDocument();
+  });
+
+  it("uses Wealthsimple logo and Visa Infinite card art for synced Wealthsimple accounts", () => {
+    const { container } = render(
+      <AccountsView
+        initialAccounts={[
+          {
+            id: "simplefin-connection-act-cash",
+            user_id: "local-user",
+            name: "Wealthsimple Cash",
+            type: "cash",
+            balance: 767.79,
+            currency: "CAD",
+            institution_name: "Wealthsimple",
+            source: "simplefin"
+          },
+          {
+            id: "simplefin-connection-act-card",
+            user_id: "local-user",
+            name: "Wealthsimple Visa Infinite",
+            type: "credit_card",
+            balance: 0,
+            currency: "CAD",
+            institution_name: "Wealthsimple",
+            source: "simplefin"
+          }
+        ]}
+        initialSimpleFinStatus={{ ...simpleFinStatus, provider: "simplefin", mode: "real", status: "synced" }}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Open Wealthsimple Cash account" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open Wealthsimple Visa Infinite account" })).toBeInTheDocument();
+    expect(container.querySelector('img[src="/institutions/logos/wealthsimple.jpg"]')).toBeInTheDocument();
+    expect(container.querySelector('img[src="/institutions/cards/wealthsimple-visa-infinite.svg"]')).toBeInTheDocument();
+  });
+
   it("calls injected handlers for create and delete actions", async () => {
     const onCreateAccount = vi.fn().mockResolvedValue({
       id: "emergency-fund",
@@ -116,5 +174,44 @@ describe("AccountsView", () => {
     expect(screen.getByLabelText("Statement file")).toBeInTheDocument();
     expect(screen.getByText("PDF OCR import")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Review import" })).toBeDisabled();
+  });
+
+  it("accepts a SimpleFIN setup token and surfaces retry state", async () => {
+    const onConnectSimpleFin = vi.fn().mockResolvedValue({
+      provider: "simplefin",
+      status: "connected",
+      mode: "real",
+      message: "SimpleFIN connection saved locally.",
+      has_credentials: true,
+      retry_count: 0
+    });
+
+    render(
+      <AccountsView
+        initialAccounts={accounts}
+        initialSimpleFinStatus={{
+          provider: "simplefin",
+          status: "error",
+          mode: "real",
+          message: "SimpleFIN needs attention.",
+          has_credentials: false,
+          last_error: "SimpleFIN accounts sync failed with 403.",
+          retry_count: 2,
+          next_retry_at: "2026-06-11T12:04:00+00:00"
+        }}
+        onConnectSimpleFin={onConnectSimpleFin}
+      />
+    );
+
+    expect(screen.getByText("Needs attention")).toBeInTheDocument();
+    expect(screen.getByText("SimpleFIN accounts sync failed with 403.")).toBeInTheDocument();
+    expect(screen.getByText("Retry 2")).toBeInTheDocument();
+    expect(screen.getByText("2026-06-11 12:04")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("SimpleFIN setup token"), { target: { value: "setup-token" } });
+    fireEvent.click(screen.getByRole("button", { name: "Connect" }));
+
+    await waitFor(() => expect(onConnectSimpleFin).toHaveBeenCalledWith("setup-token"));
+    await waitFor(() => expect(screen.getAllByText("SimpleFIN connection saved locally.").length).toBeGreaterThan(0));
   });
 });

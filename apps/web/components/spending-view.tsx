@@ -293,6 +293,54 @@ export function SpendingView({ accounts = [], recurringItems = [], summary, tran
         </article>
       </div>
 
+      <div className="spending-detail-grid">
+        <article className="panel">
+          <div className="panel-heading compact">
+            <h2>Budget watchlist</h2>
+            <span>{visibleSlice.categories.filter((category) => (category.budget_used_pct ?? 0) >= 70).length} active thresholds</span>
+          </div>
+          <div className="list-stack">
+            {visibleSlice.categories.map((category) => {
+              const usedPct = category.budget_used_pct ?? 0;
+              return (
+                <Link className="list-row list-link-row" href={buildTransactionsHref({ category: category.category, month: summary.month })} key={category.category}>
+                  <span>
+                    <strong>{category.category}</strong>
+                    <small>{category.budget ? `${formatCurrency(category.amount)} / ${formatCurrency(category.budget)}` : "No category budget"}</small>
+                  </span>
+                  <span>
+                    <b>{category.budget ? formatPercent(usedPct) : "No limit"}</b>
+                    <small>{categoryBudgetStatus(usedPct)}</small>
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </article>
+
+        <article className="panel">
+          <div className="panel-heading compact">
+            <h2>Recurring costs</h2>
+            <button type="button" onClick={() => setIsRecurringDialogOpen(true)}>Open calendar</button>
+          </div>
+          {recurringItems.length > 0 ? (
+            <div className="list-stack">
+              {recurringItems.map((item) => (
+                <Link className="list-row list-link-row" href={buildTransactionsHref({ merchant: item.merchant, month: summary.month })} key={item.merchant} aria-label={`Open ${item.merchant} recurring transactions`}>
+                  <span>
+                    <strong>{item.merchant}</strong>
+                    <small>{item.cadence} · next {formatShortDate(item.next_payment_date)}</small>
+                  </span>
+                  <b>{formatCurrency(item.monthly_amount)}/mo</b>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <p className="empty-copy">No recurring costs detected</p>
+          )}
+        </article>
+      </div>
+
       {isBudgetDialogOpen ? (
         <div className="account-dialog-backdrop" role="presentation" onClick={(event) => event.currentTarget === event.target && setIsBudgetDialogOpen(false)}>
           <div className="account-dialog budget-dialog" role="dialog" aria-modal="true" aria-labelledby="budget-dialog-title">
@@ -639,6 +687,13 @@ function budgetTone(value: number): "green" | "coral" | "amber" {
   if (value >= 90) return "coral";
   if (value >= 70) return "amber";
   return "green";
+}
+
+function categoryBudgetStatus(value: number) {
+  if (value >= 100) return "Over budget";
+  if (value >= 90) return "Near budget";
+  if (value >= 70) return "Watch pace";
+  return "On track";
 }
 
 function buildTransactionsHref(filters: { account?: string; category?: string; merchant?: string; month?: string }) {

@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS accounts (
     type TEXT NOT NULL,
     balance NUMERIC(18, 4) NOT NULL DEFAULT 0,
     currency TEXT NOT NULL DEFAULT 'CAD',
+    institution_name TEXT,
     source TEXT NOT NULL,
     last_synced_at TIMESTAMP
 );
@@ -22,6 +23,7 @@ CREATE TABLE IF NOT EXISTS transactions (
     merchant_normalized TEXT,
     description_raw TEXT NOT NULL,
     source TEXT NOT NULL,
+    external_id TEXT,
     category TEXT,
     subcategory TEXT,
     transaction_type TEXT,

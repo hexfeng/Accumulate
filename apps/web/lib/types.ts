@@ -11,17 +11,34 @@ export type AccountDeleteResponse = {
   deleted_account_id: string;
 };
 
+export type BudgetSettings = {
+  monthly_budget: number;
+  category_budgets: Record<string, number>;
+  forecast_assumptions: Record<string, unknown>;
+};
+
 export type SimpleFinStatus = {
   provider: string;
   status: string;
   mode: string;
   message: string;
+  has_credentials?: boolean;
+  last_synced_at?: string | null;
+  last_error?: string | null;
+  retry_count?: number;
+  next_retry_at?: string | null;
 };
 
 export type SimpleFinActionResponse = {
   status: string;
   provider: string;
   mode?: string;
+  message?: string;
+  has_credentials?: boolean;
+  last_synced_at?: string | null;
+  last_error?: string | null;
+  retry_count?: number;
+  next_retry_at?: string | null;
 };
 
 export type Account = {
@@ -31,8 +48,52 @@ export type Account = {
   type: AccountType;
   balance: number;
   currency: string;
+  institution_name?: string | null;
   source: string;
   last_synced_at?: string | null;
+};
+
+export type HoldingInput = {
+  account_id: string;
+  symbol: string;
+  name: string;
+  quantity: number;
+  average_cost: number;
+  market_price: number;
+  currency: string;
+};
+
+export type Holding = HoldingInput & {
+  id: string;
+  user_id: string;
+  account_name: string;
+  source: string;
+};
+
+export type HoldingDeleteResponse = {
+  deleted_holding_id: string;
+};
+
+export type PortfolioAllocationItem = {
+  label: string;
+  value: number;
+  percent: number;
+};
+
+export type PortfolioAccountSummary = {
+  account_id: string;
+  account_name: string;
+  value: number;
+  holdings_count: number;
+};
+
+export type PortfolioSnapshot = {
+  total_value: number;
+  total_cost: number;
+  unrealized_gain: number;
+  unrealized_gain_pct: number;
+  allocation: PortfolioAllocationItem[];
+  accounts: PortfolioAccountSummary[];
 };
 
 export type CategorySummary = {

@@ -53,6 +53,80 @@ def test_seed_demo_populates_dashboard_snapshot():
     assert [point["horizon_days"] for point in dashboard["forecast"]["points"]] == [30, 60, 90]
 
 
+def test_monthly_spending_can_be_requested_for_specific_period():
+    client = make_client()
+    client.post("/api/seed/demo")
+
+    may_response = client.get("/api/analytics/monthly-spending?month=2026-05")
+    june_response = client.get("/api/analytics/monthly-spending?month=2026-06")
+
+    assert may_response.status_code == 200
+    assert may_response.json()["month"] == "2026-05"
+    assert may_response.json()["total_income"] == 5200
+    assert may_response.json()["total_spending"] > 0
+    assert june_response.status_code == 200
+    assert june_response.json()["month"] == "2026-06"
+    assert june_response.json()["total_income"] == 0
+    assert june_response.json()["total_spending"] == 0
+
+
+def test_holding_crud_and_portfolio_snapshot():
+    client = make_client()
+    client.post(
+        "/api/accounts",
+        json={"name": "TFSA", "type": "investment", "balance": 0, "currency": "CAD"},
+    )
+
+    create_response = client.post(
+        "/api/holdings",
+        json={
+            "account_id": "tfsa",
+            "symbol": "VFV.TO",
+            "name": "Vanguard S&P 500 ETF",
+            "quantity": 10,
+            "average_cost": 110,
+            "market_price": 125,
+            "currency": "CAD",
+        },
+    )
+
+    assert create_response.status_code == 200
+    created = create_response.json()
+    assert created["id"] == "vfv-to"
+    assert created["account_name"] == "TFSA"
+    assert created["source"] == "manual"
+
+    portfolio = client.get("/api/portfolio").json()
+    assert portfolio["total_value"] == 1250
+    assert portfolio["total_cost"] == 1100
+    assert portfolio["unrealized_gain"] == 150
+    assert portfolio["allocation"][0]["label"] == "VFV.TO"
+    assert portfolio["accounts"][0]["account_name"] == "TFSA"
+
+    update_response = client.patch(
+        "/api/holdings/vfv-to",
+        json={
+            "account_id": "tfsa",
+            "symbol": "VFV.TO",
+            "name": "Vanguard S&P 500 ETF",
+            "quantity": 12,
+            "average_cost": 111,
+            "market_price": 126,
+            "currency": "CAD",
+        },
+    )
+
+    assert update_response.status_code == 200
+    assert update_response.json()["quantity"] == 12
+    assert client.get("/api/portfolio").json()["total_value"] == 1512
+
+    delete_response = client.delete("/api/holdings/vfv-to")
+
+    assert delete_response.status_code == 200
+    assert delete_response.json() == {"deleted_holding_id": "vfv-to"}
+    assert client.get("/api/holdings").json() == []
+
+
 def test_transaction_category_patch_creates_user_rule_for_future_matches():
     client = make_client()
     client.post(

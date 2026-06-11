@@ -1,15 +1,17 @@
 import os
+from datetime import date
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from app.integrations.simplefin import SimpleFinService
 from app.domain.analytics import build_monthly_summary
 from app.domain.forecast import build_cashflow_forecast
 from app.domain.net_worth import build_net_worth_history
 from app.domain.recurring import detect_recurring_items
-from app.domain.schemas import Account, AccountCreateRequest, AccountDeleteResponse, AccountUpdateRequest, BudgetSettings, CsvTransactionRow, DashboardSnapshot, NetWorthHistory, Transaction
+from app.domain.schemas import Account, AccountCreateRequest, AccountDeleteResponse, AccountUpdateRequest, BudgetSettings, CsvTransactionRow, DashboardSnapshot, Holding, HoldingDeleteResponse, HoldingRequest, NetWorthHistory, PortfolioSnapshot, SimpleFinConnectRequest, SimpleFinStatus, Transaction
 from app.db_store import DatabaseStore
 from app.store import LocalStore, AccountConflictError, AccountNotFoundError
 
@@ -28,17 +30,10 @@ class TransactionPatchRequest(BaseModel):
     create_rule: bool = False
 
 
-class SimpleFinStatus(BaseModel):
-    provider: str = "mock_simplefin"
-    status: str = "available"
-    mode: str = "mock"
-    message: str = "Mock SimpleFIN is ready for local-first development."
-
-
 NetWorthRange = Literal["1D", "1W", "1M", "3M", "6M", "YTD", "1Y", "ALL"]
 
 
-def create_app(store: LocalStore | DatabaseStore | None = None) -> FastAPI:
+def create_app(store: LocalStore | DatabaseStore | None = None, simplefin_service: SimpleFinService | None = None) -> FastAPI:
     app = FastAPI(title="FinSight Local API", version="0.1.0")
     app.add_middleware(
         CORSMiddleware,
@@ -48,6 +43,7 @@ def create_app(store: LocalStore | DatabaseStore | None = None) -> FastAPI:
         allow_headers=["*"],
     )
     app.state.store = store or _build_default_store()
+    app.state.simplefin_service = simplefin_service or _build_default_simplefin_service()
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
@@ -98,6 +94,53 @@ def create_app(store: LocalStore | DatabaseStore | None = None) -> FastAPI:
             raise HTTPException(status_code=409, detail=str(error)) from error
         return AccountDeleteResponse(deleted_account_id=deleted_account_id)
 
+    @app.get("/api/holdings", response_model=list[Holding])
+    def list_holdings() -> list[Holding]:
+        return app.state.store.list_holdings()
+
+    @app.post("/api/holdings", response_model=Holding)
+    def create_holding(request: HoldingRequest) -> Holding:
+        try:
+            return app.state.store.create_holding(
+                account_id=request.account_id,
+                symbol=request.symbol,
+                name=request.name,
+                quantity=request.quantity,
+                average_cost=request.average_cost,
+                market_price=request.market_price,
+                currency=request.currency,
+            )
+        except AccountNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.patch("/api/holdings/{holding_id}", response_model=Holding)
+    def update_holding(holding_id: str, request: HoldingRequest) -> Holding:
+        try:
+            return app.state.store.update_holding(
+                holding_id,
+                account_id=request.account_id,
+                symbol=request.symbol,
+                name=request.name,
+                quantity=request.quantity,
+                average_cost=request.average_cost,
+                market_price=request.market_price,
+                currency=request.currency,
+            )
+        except AccountNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.delete("/api/holdings/{holding_id}", response_model=HoldingDeleteResponse)
+    def delete_holding(holding_id: str) -> HoldingDeleteResponse:
+        try:
+            deleted_holding_id = app.state.store.delete_holding(holding_id)
+        except AccountNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        return HoldingDeleteResponse(deleted_holding_id=deleted_holding_id)
+
+    @app.get("/api/portfolio", response_model=PortfolioSnapshot)
+    def portfolio() -> PortfolioSnapshot:
+        return app.state.store.portfolio_snapshot()
+
     @app.get("/api/transactions", response_model=list[Transaction])
     def list_transactions() -> list[Transaction]:
         return app.state.store.list_transactions()
@@ -125,8 +168,8 @@ def create_app(store: LocalStore | DatabaseStore | None = None) -> FastAPI:
         return {"status": "seeded"}
 
     @app.get("/api/analytics/monthly-spending")
-    def monthly_spending():
-        return build_monthly_summary(app.state.store.list_transactions(), app.state.store.budget)
+    def monthly_spending(month: str | None = None):
+        return build_monthly_summary(app.state.store.list_transactions(), app.state.store.budget, _parse_month(month))
 
     @app.get("/api/analytics/recurring")
     def recurring():
@@ -152,20 +195,19 @@ def create_app(store: LocalStore | DatabaseStore | None = None) -> FastAPI:
 
     @app.get("/api/integrations/simplefin/status", response_model=SimpleFinStatus)
     def simplefin_status() -> SimpleFinStatus:
-        return SimpleFinStatus()
+        return SimpleFinStatus(**app.state.simplefin_service.status())
 
-    @app.post("/api/integrations/simplefin/connect")
-    def simplefin_connect() -> dict[str, str]:
-        return {"status": "connected", "provider": "mock_simplefin", "mode": "mock"}
+    @app.post("/api/integrations/simplefin/connect", response_model=SimpleFinStatus)
+    def simplefin_connect(request: SimpleFinConnectRequest | None = None) -> SimpleFinStatus:
+        return SimpleFinStatus(**app.state.simplefin_service.connect(request.setup_token if request else None))
 
-    @app.post("/api/integrations/simplefin/sync")
-    def simplefin_sync() -> dict[str, str]:
-        app.state.store.seed_demo()
-        return {"status": "synced", "provider": "mock_simplefin"}
+    @app.post("/api/integrations/simplefin/sync", response_model=SimpleFinStatus)
+    def simplefin_sync() -> SimpleFinStatus:
+        return SimpleFinStatus(**app.state.simplefin_service.sync(app.state.store))
 
-    @app.delete("/api/integrations/simplefin/disconnect")
-    def simplefin_disconnect() -> dict[str, str]:
-        return {"status": "disconnected", "provider": "mock_simplefin"}
+    @app.delete("/api/integrations/simplefin/disconnect", response_model=SimpleFinStatus)
+    def simplefin_disconnect() -> SimpleFinStatus:
+        return SimpleFinStatus(**app.state.simplefin_service.disconnect())
 
     return app
 
@@ -175,6 +217,20 @@ def _build_default_store() -> LocalStore | DatabaseStore:
     if database_url:
         return DatabaseStore(database_url)
     return LocalStore()
+
+
+def _build_default_simplefin_service() -> SimpleFinService:
+    return SimpleFinService()
+
+
+def _parse_month(month: str | None) -> date | None:
+    if month is None:
+        return None
+    try:
+        year, month_index = month.split("-")
+        return date(int(year), int(month_index), 1)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail="month must use YYYY-MM format") from error
 
 
 app = create_app()

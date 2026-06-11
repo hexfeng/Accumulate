@@ -17,7 +17,7 @@ describe("AppShell", () => {
     });
   });
 
-  it("includes Accounts in primary navigation while Settings stays out of scope", () => {
+  it("includes working MVP routes in primary navigation including Settings", () => {
     render(<AppShell><div>Body</div></AppShell>);
 
     const logo = screen.getByLabelText("FinSight logo");
@@ -28,6 +28,6 @@ describe("AppShell", () => {
     expect(screen.getByRole("link", { name: /Accounts/ })).toHaveAttribute("href", "/accounts");
     expect(screen.getByRole("link", { name: /Accounts/ })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: /Accounts/ })).toHaveClass("nav-active");
-    expect(screen.queryByRole("link", { name: /Settings/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Settings/ })).toHaveAttribute("href", "/settings");
   });
 });
