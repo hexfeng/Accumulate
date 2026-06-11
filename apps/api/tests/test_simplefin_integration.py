@@ -181,6 +181,60 @@ def test_simplefin_sync_uses_local_institution_override_when_bridge_omits_connec
     assert account["institution_name"] == "CIBC"
 
 
+def test_simplefin_sync_uses_nested_org_metadata_for_institution_and_generic_cash_type(tmp_path):
+    http = FakeSimpleFinHttp()
+    http.accounts_response.body = {
+        "accounts": [
+            {
+                "id": "ACT-cibc-chequing",
+                "name": "Chequing (7680)",
+                "currency": "CAD",
+                "balance": "66.91",
+                "available-balance": "166.91",
+                "transactions": [],
+                "org": {"name": "CIBC", "domain": "www.cibc.com", "id": "www.cibc.com"},
+            },
+            {
+                "id": "ACT-cibc-cash",
+                "name": "Other (4087)",
+                "currency": "CAD",
+                "balance": "4037.55",
+                "available-balance": "4037.55",
+                "transactions": [],
+                "org": {"name": "CIBC", "domain": "www.cibc.com", "id": "www.cibc.com"},
+            },
+            {
+                "id": "ACT-cibc-card",
+                "name": "CIBC VISA (3409)",
+                "currency": "CAD",
+                "balance": "-23.17",
+                "available-balance": "-8023.17",
+                "transactions": [],
+                "org": {"name": "CIBC", "domain": "www.cibc.com", "id": "www.cibc.com"},
+            },
+        ],
+        "connections": [],
+        "errlist": [],
+    }
+    client, credential_store, _ = make_client(tmp_path, http)
+    credential_store.save_access_url(ACCESS_URL)
+
+    response = client.post("/api/integrations/simplefin/sync")
+
+    assert response.status_code == 200
+    accounts = {account["id"]: account for account in client.get("/api/accounts").json()}
+    chequing = accounts["simplefin-connection-act-cibc-chequing"]
+    cash = accounts["simplefin-connection-act-cibc-cash"]
+    card = accounts["simplefin-connection-act-cibc-card"]
+    assert chequing["institution_name"] == "CIBC"
+    assert chequing["type"] == "checking"
+    assert cash["institution_name"] == "CIBC"
+    assert cash["type"] == "cash"
+    assert card["institution_name"] == "CIBC"
+    assert card["name"] == "CIBC Visa (3409)"
+    assert card["type"] == "credit_card"
+
+
 def test_simplefin_sync_cleans_wealthsimple_account_names_and_card_metadata(tmp_path, monkeypatch):
     http = FakeSimpleFinHttp()
     http.accounts_response.body = {

@@ -209,7 +209,7 @@ class DatabaseStore:
                 account_id = f"simplefin-{_slug(connection_id)}-{_slug(external_account_id)}"
                 institution_name = _simplefin_account_institution(item, account_id, connection_names, institution_overrides)
                 raw_name = str(item.get("name") or external_account_id)
-                account_type = _infer_simplefin_account_type(raw_name)
+                account_type = _infer_simplefin_account_type(item)
                 name = _clean_simplefin_account_name(raw_name, account_type, institution_name)
                 balance = _money(float(item.get("balance") or 0))
                 currency = str(item.get("currency") or "CAD").upper()

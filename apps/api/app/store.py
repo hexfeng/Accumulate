@@ -70,7 +70,7 @@ class LocalStore:
             account_id = f"simplefin-{_slug(connection_id)}-{_slug(external_account_id)}"
             institution_name = _simplefin_account_institution(item, account_id, connection_names, institution_overrides)
             raw_name = str(item.get("name") or external_account_id)
-            account_type = _infer_simplefin_account_type(raw_name)
+            account_type = _infer_simplefin_account_type(item)
             name = _clean_simplefin_account_name(raw_name, account_type, institution_name)
             balance = _money(float(item.get("balance") or 0))
             currency = str(item.get("currency") or "CAD").upper()
@@ -274,8 +274,10 @@ def _money(value: float) -> float:
     return round(value, 2)
 
 
-def _infer_simplefin_account_type(name: str) -> str:
-    normalized = name.lower()
+def _infer_simplefin_account_type(account: dict[str, Any] | str) -> str:
+    raw_name = account if isinstance(account, str) else str(account.get("name") or "")
+    explicit_type = "" if isinstance(account, str) else _simplefin_account_text(account, "type", "account_type", "account-type", "class", "category", "subtype")
+    normalized = f"{raw_name} {explicit_type}".lower()
     if any(token in normalized for token in ("visa", "mastercard", "amex", "credit", "card")):
         return "credit_card"
     if any(token in normalized for token in ("saving", "savings")):
@@ -288,6 +290,8 @@ def _infer_simplefin_account_type(name: str) -> str:
         return "investment"
     if "loan" in normalized or "mortgage" in normalized:
         return "loan"
+    if not isinstance(account, str) and raw_name.lower().startswith("other ") and _simplefin_has_available_cash_balance(account):
+        return "cash"
     return "other"
 
 
@@ -304,7 +308,7 @@ def _clean_simplefin_account_name(name: str, account_type: str, institution_name
 
 
 def _title_account_name(name: str) -> str:
-    acronyms = {"TFSA", "RRSP", "RESP", "FHSA", "USD", "CAD", "ETF", "HSA"}
+    acronyms = {"AMEX", "BMO", "CAD", "CIBC", "ETF", "FHSA", "HSA", "PC", "RBC", "RESP", "RRSP", "TD", "TFSA", "USD"}
     words = []
     for word in name.split(" "):
         upper = word.upper()
@@ -360,6 +364,9 @@ def _simplefin_account_institution(
     external_account_id = str(account.get("id") or "")
     connection_id = str(account.get("conn_id") or "connection")
     for candidate in (
+        _simplefin_org_text(account, "name", "org_name", "institution_name", "display_name"),
+        _simplefin_org_text(account, "domain", "id", "url"),
+        _simplefin_account_text(account, "institution_name", "institution", "org_name", "organization", "organization_name"),
         connection_names.get(connection_id),
         str(account.get("conn_name") or "").strip(),
         institution_overrides.get(external_account_id.lower()),
@@ -368,6 +375,36 @@ def _simplefin_account_institution(
         if candidate:
             return candidate
     return None
+
+
+def _simplefin_account_text(account: dict[str, Any], *keys: str) -> str:
+    for key in keys:
+        value = account.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+
+def _simplefin_org_text(account: dict[str, Any], *keys: str) -> str:
+    org = account.get("org")
+    if not isinstance(org, dict):
+        return ""
+    for key in keys:
+        value = org.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+
+def _simplefin_has_available_cash_balance(account: dict[str, Any]) -> bool:
+    if "available-balance" not in account and "available_balance" not in account:
+        return False
+    try:
+        balance = float(account.get("balance") or 0)
+        available_balance = float(account.get("available-balance", account.get("available_balance")) or 0)
+    except (TypeError, ValueError):
+        return True
+    return balance >= 0 and available_balance >= 0
 
 
 def _simplefin_transaction_date(transaction: dict[str, Any]) -> date:
