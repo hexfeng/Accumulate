@@ -1,14 +1,15 @@
 import { AppShell } from "@/components/app-shell";
-import { PlaceholderView } from "@/components/placeholder-view";
+import { InvestmentsView } from "@/components/investments-view";
+import { getAccounts, getHoldings, getPortfolio } from "@/lib/api";
 
-export default function InvestmentsPage() {
+export const dynamic = "force-dynamic";
+
+export default async function InvestmentsPage() {
+  const [accounts, holdings, portfolio] = await Promise.all([getAccounts(), getHoldings(), getPortfolio()]);
+
   return (
     <AppShell>
-      <PlaceholderView
-        description="Mock investments workspace placeholder. Allocation and return views use demo data until holdings are connected."
-        eyebrow="Mock workspace"
-        title="Investments"
-      />
+      <InvestmentsView accounts={accounts} initialHoldings={holdings} initialPortfolio={portfolio} />
     </AppShell>
   );
 }

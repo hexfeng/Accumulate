@@ -1,14 +1,50 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 224" role="img" aria-label="Wealthsimple Visa Infinite">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 316" role="img" aria-label="Wealthsimple Visa Infinite Privilege card">
   <defs>
-    <linearGradient id="wealthsimple-card" x1="0" x2="1" y1="0" y2="1">
-      <stop offset="0" stop-color="#111827"/>
-      <stop offset="1" stop-color="#020617"/>
+    <linearGradient id="face" x1="0.02" x2="1" y1="0.08" y2="0.92">
+      <stop offset="0" stop-color="#0a0a09"/>
+      <stop offset="0.35" stop-color="#151513"/>
+      <stop offset="0.7" stop-color="#3d3d39"/>
+      <stop offset="1" stop-color="#8d8a83"/>
     </linearGradient>
+    <linearGradient id="grain" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.02"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.09"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.1"/>
+    </linearGradient>
+    <linearGradient id="chip" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#f3f2ee"/>
+      <stop offset="0.5" stop-color="#d7d4cf"/>
+      <stop offset="1" stop-color="#aaa69f"/>
+    </linearGradient>
+    <filter id="soft-shadow" x="-10%" y="-12%" width="120%" height="124%">
+      <feDropShadow dx="0" dy="7" stdDeviation="10" flood-color="#000" flood-opacity="0.28"/>
+    </filter>
+    <pattern id="fine-noise" width="8" height="8" patternUnits="userSpaceOnUse">
+      <path d="M0 1h8M0 5h8" stroke="#fff" stroke-opacity="0.018" stroke-width="1"/>
+      <path d="M1 0v8M5 0v8" stroke="#000" stroke-opacity="0.025" stroke-width="1"/>
+    </pattern>
   </defs>
-  <rect width="360" height="224" rx="24" fill="url(#wealthsimple-card)"/>
-  <rect x="28" y="34" width="46" height="34" rx="8" fill="#1ee69d"/>
-  <text x="41" y="59" fill="#07120d" font-family="Arial, sans-serif" font-size="24" font-weight="900">W</text>
-  <text x="28" y="180" fill="#fff" font-family="Arial, sans-serif" font-size="22" font-weight="800">WEALTHSIMPLE</text>
-  <text x="278" y="54" fill="#fff" font-family="Arial, sans-serif" font-size="22" font-weight="800">VISA</text>
-  <text x="270" y="78" fill="#cbd5e1" font-family="Arial, sans-serif" font-size="12" font-weight="700">INFINITE</text>
+
+  <g filter="url(#soft-shadow)">
+    <rect x="0.5" y="0.5" width="499" height="315" rx="15" fill="url(#face)"/>
+    <rect x="0.5" y="0.5" width="499" height="315" rx="15" fill="url(#grain)"/>
+    <rect x="0.5" y="0.5" width="499" height="315" rx="15" fill="url(#fine-noise)"/>
+    <rect x="1" y="1" width="498" height="314" rx="14" fill="none" stroke="#ffffff" stroke-opacity="0.06"/>
+  </g>
+
+  <g transform="translate(44 99)">
+    <rect width="73" height="57" rx="8" fill="url(#chip)"/>
+    <rect x="1.5" y="1.5" width="70" height="54" rx="7" fill="none" stroke="#f8f7f2" stroke-opacity="0.75" stroke-width="2"/>
+    <rect x="25" y="5" width="24" height="47" rx="6" fill="none" stroke="#74716c" stroke-width="1.7"/>
+    <path d="M0 18h25M49 18h24M0 39h25M49 39h24M25 29H0M73 29H49" fill="none" stroke="#77746f" stroke-width="1.55"/>
+  </g>
+
+  <g transform="translate(376 25)" fill="#0b0b0a">
+    <path d="M0 0h20l12 64L55 0h18l-36 88H19L0 0Z"/>
+    <path d="M73 0h19l-15 88H58L73 0Z"/>
+    <path d="M104 0h19l-7 54L142 0h20l-45 88H99L104 0Z"/>
+  </g>
+
+  <text x="374" y="271" fill="#080808" font-family="Arial, Helvetica, sans-serif" font-size="42" font-style="italic" font-weight="900" letter-spacing="-3">VISA</text>
+  <text x="333" y="294" fill="#111" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="500" letter-spacing="0.2">Infinite Privilege</text>
 </svg>

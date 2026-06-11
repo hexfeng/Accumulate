@@ -1,5 +1,5 @@
-import { demoDashboard, demoNetWorthHistoryByRange, demoTransactions } from "./demo-data";
-import type { Account, AccountDeleteResponse, AccountInput, CashflowForecast, DashboardSnapshot, MonthlySummary, NetWorthHistory, NetWorthRange, SimpleFinActionResponse, SimpleFinStatus, Transaction } from "./types";
+import { demoDashboard, demoHoldings, demoNetWorthHistoryByRange, demoPortfolio, demoSettings, demoTransactions } from "./demo-data";
+import type { Account, AccountDeleteResponse, AccountInput, BudgetSettings, CashflowForecast, DashboardSnapshot, Holding, HoldingDeleteResponse, HoldingInput, MonthlySummary, NetWorthHistory, NetWorthRange, PortfolioSnapshot, SimpleFinActionResponse, SimpleFinStatus, Transaction } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 
@@ -29,10 +29,12 @@ export function getCashflowForecast(): Promise<CashflowForecast> {
 
 export function getSimpleFinStatus(): Promise<SimpleFinStatus> {
   return getJson("/api/integrations/simplefin/status", {
-    provider: "mock_simplefin",
-    status: "available",
-    mode: "mock",
-    message: "Mock SimpleFIN is ready for local-first development."
+    provider: "simplefin",
+    status: "unconfigured",
+    mode: "real",
+    message: "Add a SimpleFIN setup token to create a local connection.",
+    has_credentials: false,
+    retry_count: 0
   });
 }
 
@@ -44,8 +46,21 @@ export function getTransactions(): Promise<Transaction[]> {
   return getJson("/api/transactions", demoTransactions);
 }
 
-export function getMonthlySpending(): Promise<MonthlySummary> {
-  return getJson("/api/analytics/monthly-spending", demoDashboard.monthly_summary);
+export function getMonthlySpending(month?: string): Promise<MonthlySummary> {
+  const path = month ? `/api/analytics/monthly-spending?month=${encodeURIComponent(month)}` : "/api/analytics/monthly-spending";
+  return getJson(path, month ? { ...demoDashboard.monthly_summary, month } : demoDashboard.monthly_summary);
+}
+
+export function getSettings(): Promise<BudgetSettings> {
+  return getJson("/api/settings", demoSettings);
+}
+
+export function getHoldings(): Promise<Holding[]> {
+  return getJson("/api/holdings", demoHoldings);
+}
+
+export function getPortfolio(): Promise<PortfolioSnapshot> {
+  return getJson("/api/portfolio", demoPortfolio);
 }
 
 export async function patchTransactionCategory(transactionId: string, category: string, merchant: string): Promise<Transaction | null> {
@@ -76,8 +91,28 @@ export async function deleteAccount(accountId: string): Promise<AccountDeleteRes
   return sendJson<AccountDeleteResponse>(`/api/accounts/${accountId}`, "DELETE");
 }
 
-export async function connectSimpleFin(): Promise<SimpleFinActionResponse> {
-  return sendJson<SimpleFinActionResponse>("/api/integrations/simplefin/connect", "POST");
+export async function createHolding(input: HoldingInput): Promise<Holding> {
+  return sendJson<Holding>("/api/holdings", "POST", input);
+}
+
+export async function updateHolding(holdingId: string, input: HoldingInput): Promise<Holding> {
+  return sendJson<Holding>(`/api/holdings/${holdingId}`, "PATCH", input);
+}
+
+export async function deleteHolding(holdingId: string): Promise<HoldingDeleteResponse> {
+  return sendJson<HoldingDeleteResponse>(`/api/holdings/${holdingId}`, "DELETE");
+}
+
+export async function updateSettings(settings: BudgetSettings): Promise<BudgetSettings> {
+  return sendJson<BudgetSettings>("/api/settings", "PUT", settings);
+}
+
+export async function connectSimpleFin(setupToken?: string): Promise<SimpleFinActionResponse> {
+  return sendJson<SimpleFinActionResponse>(
+    "/api/integrations/simplefin/connect",
+    "POST",
+    setupToken ? { setup_token: setupToken } : undefined
+  );
 }
 
 export async function syncSimpleFin(): Promise<SimpleFinActionResponse> {
@@ -88,7 +123,7 @@ export async function disconnectSimpleFin(): Promise<SimpleFinActionResponse> {
   return sendJson<SimpleFinActionResponse>("/api/integrations/simplefin/disconnect", "DELETE");
 }
 
-async function sendJson<T>(path: string, method: "POST" | "PATCH" | "DELETE", body?: unknown): Promise<T> {
+async function sendJson<T>(path: string, method: "POST" | "PATCH" | "PUT" | "DELETE", body?: unknown): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     method,
     headers: body ? { "Content-Type": "application/json" } : undefined,

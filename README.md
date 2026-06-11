@@ -6,13 +6,17 @@ FinSight is a local-first personal finance workspace for bank-account tracking, 
 
 - FastAPI backend with local single-user scope.
 - CSV transaction import with normalization and deduplication.
-- Mock SimpleFIN status/connect/sync/disconnect endpoints.
+- Real SimpleFIN status/connect/sync/disconnect endpoints with local credential storage.
 - Account CRUD APIs for create, update, and delete with transaction cleanup.
 - Rule-based categorization with user correction rules.
 - Monthly spending summaries, recurring detection, and cashflow forecast engine.
-- Next.js app shell with Dashboard, Cash, Accounts, Transactions, and Spending MVP pages.
-- Accounts page with SimpleFIN Bridge status, separated cash and credit-card account views, institution visuals, source labels, clean one-line account rows, and click-through account detail/update modals.
+- Next.js app shell with Dashboard, Cash, Accounts, Transactions, Spending, Recap, Investments, and Settings MVP pages.
+- Accounts page with SimpleFIN Bridge status, setup-token connect flow, sync freshness, retry/error state, separated cash and credit-card account views, institution visuals, source labels, clean one-line account rows, and click-through account detail/update modals.
 - Cash page with monthly in-flow/out-flow KPIs, available cash, net position, 30/60/90 day forecast, cash account distribution, and matching compact account rows.
+- Recap page with period support, income/spending/net cashflow, savings rate, recurring costs, notable categories, top merchants, sparse-data states, and Transactions drill-down links.
+- Spending page expansion with budget threshold watchlists, category/merchant drill-downs, recurring cost drill-downs, and period-preserving Transactions links.
+- Investments MVP with manual holdings CRUD, portfolio value, cost basis, unrealized gain, allocation, and account grouping.
+- Settings MVP with budget, category budget, forecast assumption, currency/timezone, AI privacy, and local-first controls connected to the settings API.
 - Demo seed endpoint for local development.
 
 ## Latest milestone
@@ -26,7 +30,7 @@ Completed:
 - Frontend API wrappers and types for accounts, mock SimpleFIN actions, and cashflow forecast data.
 - `/accounts` page for SimpleFIN Bridge status, cash account summaries, credit-card obligations, source labels, one-line account rows, modal-based manual account entry, statement import entry, and per-account detail/update modals.
 - `/cash` page for short-term liquidity, monthly inflow/outflow, account drill-downs, forecast, and cash account distribution.
-- Sidebar navigation updated to include Accounts while keeping Settings deferred from the main nav.
+- Sidebar navigation updated to include Accounts; Settings was added to the main nav in the 2026-06-09 MVP slice.
 - Dashboard and Cash visual polish for typography, hero/header scale, trend endpoint, and FinSight logo.
 
 2026-06-05 Accounts frontend polish:
@@ -38,18 +42,35 @@ Completed:
 - Aligned the Accounts header action with the Dashboard pill-button style so `Add account / Import` sits centered with the header copy.
 - Added a local institution asset library for major Canadian banks, Wealthsimple, EQ Bank, PC Financial, Rogers Bank, and Amex card imagery.
 
+2026-06-09 Recap, Spending, Investments, and Settings MVP:
+
+- Added `month=YYYY-MM` support to monthly spending analytics for period-specific Recap views.
+- Added holdings persistence and `GET`/`POST`/`PATCH`/`DELETE /api/holdings` plus `GET /api/portfolio`.
+- Replaced `/recap` placeholder with a period recap page for income, spending, net cashflow, savings rate, recurring costs, notable categories, top merchants, and sparse-data states.
+- Expanded `/spending` with budget threshold watchlists and recurring cost drill-down links.
+- Replaced `/investments` placeholder with manual holdings management, portfolio totals, allocation, and account grouping.
+- Replaced `/settings` placeholder with live settings controls and added Settings to the main sidebar.
+
+2026-06-11 Real SimpleFIN connectivity:
+
+- Replaced mock SimpleFIN connect/sync/disconnect with a real SimpleFIN client that claims setup tokens, stores the returned access URL locally, and fetches `/accounts`.
+- Added local credential storage at `~/.finsight/simplefin_credentials.json` by default, overrideable with `FINSIGHT_SIMPLEFIN_CREDENTIAL_PATH`; the API never returns the access URL in responses.
+- Synced SimpleFIN accounts now write `source="simplefin"`, stable external account IDs, balances, `last_synced_at`, and de-duplicated transactions with `external_id`.
+- Accounts shows setup-token entry, sync freshness, last error, retry count, and next retry time while preserving the existing Connect / Sync now / Disconnect controls.
+
 ## Planned frontend navigation
 
-The current web app implements Dashboard, Cash, Accounts, Transactions, and Spending. Investments, Recap, and Settings remain staged for later MVP slices. Settings is intentionally not in the main sidebar yet so the current navigation stays focused on working pages.
+The current web app implements Dashboard, Cash, Spending, Investments, Recap, Transactions, Accounts, and Settings as MVP pages.
 
 - Dashboard (`/dashboard`) for the financial command center and cross-page entry points.
 - Cash (`/cash`) for monthly inflow/outflow, available cash, net short-term position, cash account distribution, and 30/60/90 day cashflow risk.
 - Spending (`/spending`) for income, expenses, budget usage, merchant/category insights, and recurring costs.
-- Investments (`/investments`) for manual holdings, portfolio value, returns, allocation, and FX exposure.
-- Recap (`/recap`) for monthly, quarterly, and yearly financial summaries.
+- Investments (`/investments`) for manual holdings, portfolio value, cost basis, unrealized gains, allocation, and account grouping.
+- Recap (`/recap`) for period income, spending, net cashflow, savings rate, recurring costs, notable categories, and merchant summaries.
 - Transactions (`/transactions`) for transaction drill-down, review, categorization, and local rule creation.
 - Accounts (`/accounts`) for SimpleFIN Bridge status, cash account summaries, credit-card obligations, manual/statement data entry, compact account rows, account detail/update modals, and sync health.
-- Settings (`/settings`) for budgets, category rules, forecast assumptions, currency, and privacy preferences. This route is deferred and not part of the current main sidebar.
+- SimpleFIN setup tokens can be entered from `/accounts`; credentials are stored locally and can be disconnected from the same panel.
+- Settings (`/settings`) for budgets, category budgets, forecast assumptions, currency/timezone, AI privacy mode, and local-first preferences.
 
 See `docs/MVP_FRONTEND_NAVIGATION.md` for the detailed route map, page responsibilities, drill-down rules, and Dashboard page specification.
 
@@ -93,5 +114,5 @@ npm run build:web
 
 - The backend defaults to an in-process local store when `FINSIGHT_DATABASE_URL` is unset. Set `FINSIGHT_DATABASE_URL=postgresql+psycopg://finsight:finsight@localhost:5432/finsight` to use the SQLAlchemy/PostgreSQL store.
 - `apps/api/schema.sql` documents the Postgres-compatible schema used by the persistence layer.
-- Real SimpleFIN credentials are not required yet. The mock adapter keeps the endpoint contract stable for later replacement.
-- AI insight generation, investment holdings, yfinance valuation, Redis workers, KMS, object storage, and SaaS auth are intentionally deferred.
+- SimpleFIN credentials are local-only. By default the access URL is stored in `~/.finsight/simplefin_credentials.json`; set `FINSIGHT_SIMPLEFIN_CREDENTIAL_PATH` to choose a different local secret file.
+- External market-data valuation such as yfinance, AI insight generation, Redis workers, KMS, object storage, and SaaS auth are intentionally deferred.

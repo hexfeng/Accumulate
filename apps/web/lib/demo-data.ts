@@ -1,4 +1,4 @@
-import type { DashboardSnapshot, NetWorthHistory, NetWorthRange, Transaction } from "./types";
+import type { BudgetSettings, DashboardSnapshot, Holding, NetWorthHistory, NetWorthRange, PortfolioSnapshot, Transaction } from "./types";
 
 export const demoDashboard: DashboardSnapshot = {
   accounts: [
@@ -53,6 +53,46 @@ export const demoTransactions: Transaction[] = [
   { id: "txn-2", user_id: "local-user", account_id: "cibc-visa", account_name: "CIBC Visa", account_type: "credit_card", transaction_date: "2026-05-15", amount: -18.99, currency: "CAD", merchant_raw: "NETFLIX.COM", description_raw: "NETFLIX.COM", source: "mock_simplefin", merchant_normalized: "Netflix", category: "Subscriptions", is_excluded_from_spending: false, confidence: 0.86 },
   { id: "txn-3", user_id: "local-user", account_id: "cibc-chequing", account_name: "CIBC Chequing", account_type: "checking", transaction_date: "2026-05-01", amount: 5200, currency: "CAD", merchant_raw: "PAYROLL ACME CANADA", description_raw: "PAYROLL ACME CANADA", source: "mock_simplefin", merchant_normalized: "Payroll", category: "Income", is_excluded_from_spending: false, confidence: 0.75 }
 ];
+
+export const demoSettings: BudgetSettings = {
+  monthly_budget: 3000,
+  category_budgets: {
+    Groceries: 650,
+    Dining: 500,
+    Subscriptions: 150
+  },
+  forecast_assumptions: {
+    cash_buffer: 1000,
+    income_model: "last-observed-month",
+    ai_mode: "aggregated",
+    local_first: true
+  }
+};
+
+export const demoHoldings: Holding[] = [
+  {
+    id: "vfv-to",
+    user_id: "local-user",
+    account_id: "tfsa",
+    account_name: "TFSA",
+    symbol: "VFV.TO",
+    name: "Vanguard S&P 500 ETF",
+    quantity: 10,
+    average_cost: 110,
+    market_price: 125,
+    currency: "CAD",
+    source: "manual"
+  }
+];
+
+export const demoPortfolio: PortfolioSnapshot = {
+  total_value: 1250,
+  total_cost: 1100,
+  unrealized_gain: 150,
+  unrealized_gain_pct: 13.64,
+  allocation: [{ label: "VFV.TO", value: 1250, percent: 100 }],
+  accounts: [{ account_id: "tfsa", account_name: "TFSA", value: 1250, holdings_count: 1 }]
+};
 
 const NET_WORTH_RANGES: NetWorthRange[] = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y", "ALL"];
 const RANGE_POINT_COUNTS: Record<NetWorthRange, number> = {

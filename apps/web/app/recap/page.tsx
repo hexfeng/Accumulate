@@ -1,14 +1,22 @@
 import { AppShell } from "@/components/app-shell";
-import { PlaceholderView } from "@/components/placeholder-view";
+import { RecapView } from "@/components/recap-view";
+import { getDashboard, getMonthlySpending, getTransactions } from "@/lib/api";
 
-export default function RecapPage() {
+export const dynamic = "force-dynamic";
+
+type RecapPageProps = {
+  searchParams?: Promise<{ period?: string }>;
+};
+
+export default async function RecapPage({ searchParams }: RecapPageProps) {
+  const dashboard = await getDashboard();
+  const params = await searchParams;
+  const period = params?.period ?? dashboard.monthly_summary.month;
+  const [summary, transactions] = await Promise.all([getMonthlySpending(period), getTransactions()]);
+
   return (
     <AppShell>
-      <PlaceholderView
-        description="Mock recap placeholder. Monthly summary cards on the Dashboard stay available while the full recap page is prepared."
-        eyebrow="Mock workspace"
-        title="Recap"
-      />
+      <RecapView period={period} recurringItems={dashboard.recurring_items} summary={summary} transactions={transactions} />
     </AppShell>
   );
 }

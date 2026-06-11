@@ -14,7 +14,7 @@ type AccountsViewProps = {
   initialTransactions?: Transaction[];
   onCreateAccount?: (input: AccountInput) => Promise<Account>;
   onDeleteAccount?: (accountId: string) => Promise<AccountDeleteResponse>;
-  onConnectSimpleFin?: () => Promise<SimpleFinActionResponse>;
+  onConnectSimpleFin?: (setupToken?: string) => Promise<SimpleFinActionResponse>;
   onDisconnectSimpleFin?: () => Promise<SimpleFinActionResponse>;
   onSyncSimpleFin?: () => Promise<SimpleFinActionResponse>;
 };
@@ -42,6 +42,8 @@ export function AccountsView({
   const [message, setMessage] = useState(initialSimpleFinStatus.message);
   const [error, setError] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const [simpleFinStatus, setSimpleFinStatus] = useState(initialSimpleFinStatus);
+  const [setupToken, setSetupToken] = useState("");
 
   const selectedAccount = accounts.find((account) => account.id === selectedAccountId) ?? null;
   const totals = summarizeAccounts(accounts);
@@ -52,17 +54,18 @@ export function AccountsView({
   const cashTotal = cashAccounts.reduce((sum, account) => sum + account.balance, 0);
   const creditOutstanding = creditCardAccounts.reduce((sum, account) => sum + Math.abs(Math.min(account.balance, 0)), 0);
   const syncedCount = simpleFinAccounts.length;
-  const sourceLabelText = sourceLabel(initialSimpleFinStatus.provider);
+  const sourceLabelText = sourceLabel(simpleFinStatus.provider);
+  const shouldShowSetupToken = !simpleFinStatus.has_credentials || simpleFinStatus.status === "unconfigured" || simpleFinStatus.status === "error";
 
   const freshnessLabel = useMemo(() => {
-    if (initialSimpleFinStatus.status === "available" || initialSimpleFinStatus.status === "connected") {
+    if (simpleFinStatus.status === "available" || simpleFinStatus.status === "connected") {
       return "Ready";
     }
-    if (initialSimpleFinStatus.status === "synced") {
+    if (simpleFinStatus.status === "synced") {
       return "Synced";
     }
     return "Needs attention";
-  }, [initialSimpleFinStatus.status]);
+  }, [simpleFinStatus.status]);
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -88,7 +91,20 @@ export function AccountsView({
   async function handleSimpleFin(label: string, action: () => Promise<SimpleFinActionResponse>) {
     await runAction(label, async () => {
       const response = await action();
-      setMessage(`Mock SimpleFIN ${response.status}. Refresh accounts if you do not see updated balances.`);
+      const succeeded = response.status === "connected" || response.status === "synced" || response.status === "disconnected";
+      const nextStatus = {
+        ...simpleFinStatus,
+        ...response,
+        message: response.message ?? `SimpleFIN ${response.status}.`,
+        last_error: response.last_error ?? (succeeded ? null : simpleFinStatus.last_error),
+        retry_count: response.retry_count ?? (succeeded ? 0 : simpleFinStatus.retry_count),
+        next_retry_at: response.next_retry_at ?? (succeeded ? null : simpleFinStatus.next_retry_at)
+      };
+      setSimpleFinStatus(nextStatus);
+      setMessage(nextStatus.message);
+      if (response.status === "connected") {
+        setSetupToken("");
+      }
     });
   }
 
@@ -140,12 +156,13 @@ export function AccountsView({
         <div className="source-status-main">
           <span className="section-eyebrow">SimpleFIN Bridge</span>
           <strong>{freshnessLabel}</strong>
-          <p>{initialSimpleFinStatus.message}</p>
+          <p>{simpleFinStatus.message}</p>
+          {simpleFinStatus.last_error ? <p className="source-error-detail">{simpleFinStatus.last_error}</p> : null}
         </div>
         <div className="source-health-grid">
           <div className="source-health-tile">
             <span>Mode</span>
-            <strong>{initialSimpleFinStatus.mode}</strong>
+            <strong>{simpleFinStatus.mode}</strong>
           </div>
           <div className="source-health-tile">
             <span>Synced accounts</span>
@@ -155,9 +172,32 @@ export function AccountsView({
             <span>Source</span>
             <strong>{sourceLabelText}</strong>
           </div>
+          <div className="source-health-tile">
+            <span>Last sync</span>
+            <strong>{formatTimestampLabel(simpleFinStatus.last_synced_at, "Not synced")}</strong>
+          </div>
+          <div className="source-health-tile">
+            <span>Retry</span>
+            <strong>Retry {simpleFinStatus.retry_count ?? 0}</strong>
+          </div>
+          <div className="source-health-tile">
+            <span>Next retry</span>
+            <strong>{formatTimestampLabel(simpleFinStatus.next_retry_at, "None")}</strong>
+          </div>
         </div>
+        {shouldShowSetupToken ? (
+          <label className="simplefin-token-form">
+            <span>SimpleFIN setup token</span>
+            <input
+              autoComplete="off"
+              type="password"
+              value={setupToken}
+              onChange={(event) => setSetupToken(event.target.value)}
+            />
+          </label>
+        ) : null}
         <div className="source-actions">
-          <button type="button" onClick={() => handleSimpleFin("connect", onConnectSimpleFin)} disabled={pendingAction === "connect"}>Connect</button>
+          <button type="button" onClick={() => handleSimpleFin("connect", () => onConnectSimpleFin(setupToken.trim() || undefined))} disabled={pendingAction === "connect"}>Connect</button>
           <button type="button" onClick={() => handleSimpleFin("sync", onSyncSimpleFin)} disabled={pendingAction === "sync"}>Sync now</button>
           <button type="button" onClick={() => handleSimpleFin("disconnect", onDisconnectSimpleFin)} disabled={pendingAction === "disconnect"}>Disconnect</button>
         </div>
@@ -435,7 +475,7 @@ function AccountDetailsDialog({
             </div>
             <div>
               <dt>Last sync</dt>
-              <dd>{account.last_synced_at ?? "Not synced"}</dd>
+              <dd>{formatTimestampLabel(account.last_synced_at, "Not synced")}</dd>
             </div>
           </dl>
         </div>
@@ -500,4 +540,12 @@ function summarizeAccounts(accounts: Account[]) {
 
 function formatType(type: AccountType) {
   return type.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function formatTimestampLabel(value: string | null | undefined, emptyLabel: string) {
+  if (!value) {
+    return emptyLabel;
+  }
+  const match = value.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
+  return match ? `${match[1]} ${match[2]}` : value;
 }

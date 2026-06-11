@@ -2,7 +2,7 @@
 
 This document captures the MVP frontend information architecture, route map, cross-page navigation, and current implementation status. It is the day-to-day product and task reference while the longer PRD/technical architecture document remains the broader product source.
 
-Last updated: 2026-06-05
+Last updated: 2026-06-11
 
 ## 1. Navigation principles
 
@@ -26,16 +26,11 @@ The current main sidebar exposes implemented or active MVP routes:
 Dashboard        /dashboard        implemented
 Cash             /cash             implemented
 Spending         /spending         implemented
-Investments      /investments      placeholder
-Recap            /recap            placeholder
+Investments      /investments      implemented MVP
+Recap            /recap            implemented
 Transactions     /transactions     implemented
 Accounts         /accounts         implemented
-```
-
-Settings exists as a deferred route and should not be added to the main sidebar until budget/category/forecast/privacy settings are ready:
-
-```text
-Settings         /settings         deferred placeholder
+Settings         /settings         implemented MVP
 ```
 
 A future grouped version can be used when the sidebar needs more structure:
@@ -91,12 +86,12 @@ Future nested routes may include:
 |---|---|---|---|
 | Dashboard | Implemented | Am I financially healthy right now? | KPI summary, net-worth trend, alerts, next actions, cashflow/spending previews, cross-page entry points. |
 | Cash | Implemented | Is my short-term liquidity safe? | Monthly in-flow/out-flow, available cash, net short-term position, 30/60/90 forecast, cash distribution, cash and credit account drill-downs. |
-| Spending | Implemented MVP | Where did my money go? | Income/spending summary, categories, merchants, recurring costs, spending insights. |
-| Investments | Placeholder | How is my wealth performing? | Holdings, portfolio value, returns, allocation, account breakdown, FX exposure. |
-| Recap | Placeholder | What changed over a period? | Monthly/quarterly/yearly summaries, notable changes, recurring costs, action items. |
+| Spending | Implemented | Where did my money go? | Income/spending summary, budget thresholds, category and merchant drill-downs, recurring costs, spending insights. |
+| Investments | Implemented MVP | How is my wealth performing? | Manual holdings CRUD, portfolio value, cost basis, unrealized gain, allocation, and account grouping. |
+| Recap | Implemented | What changed over a period? | Period income, spending, net cashflow, savings rate, recurring costs, notable categories, top merchants, sparse-data states, and action links. |
 | Transactions | Implemented MVP | Is the source data correct? | Search, filters, review queue, categorization, exclusion, transfer marking, rule creation. |
-| Accounts | Implemented | Are my accounts and data sources healthy? | SimpleFIN Bridge status, cash account grouping, credit-card obligation grouping, institution visuals, source labels, clean one-line account rows, modal-based manual/statement entry, click-through account detail/update modals, and click-outside modal dismissal. |
-| Settings | Deferred | How should FinSight interpret my data? | Budgets, category rules, forecast assumptions, base currency, timezone, privacy/AI modes. |
+| Accounts | Implemented | Are my accounts and data sources healthy? | Real SimpleFIN Bridge status/connect/sync/disconnect, setup-token entry, sync freshness, retry/error state, cash account grouping, credit-card obligation grouping, institution visuals, source labels, clean one-line account rows, modal-based manual/statement entry, click-through account detail/update modals, and click-outside modal dismissal. |
+| Settings | Implemented MVP | How should FinSight interpret my data? | Monthly budget, category budgets, forecast assumptions, base currency, timezone, AI privacy mode, and local-first preferences. |
 
 ## 5. Cross-page drill-down rules
 
@@ -178,7 +173,7 @@ Planned examples:
         |-- click outside modal to dismiss
         |-- account update/delete from account modals
         |-- statement import entry from Add account / Import modal
-        |-- mock SimpleFIN connect/sync/disconnect
+        |-- real SimpleFIN connect/sync/disconnect
         `-- /transactions?account=...
 ```
 
@@ -210,7 +205,7 @@ The Dashboard header is the first visual focus. It should promote Total Net Wort
 | Change vs yesterday | Absolute amount and percentage, such as `+$1,182.30 and +0.82% vs yesterday`. | Same as Total Net Worth. | If previous-day data is unavailable, show `No previous day data` instead of `0.00%`. |
 | Goal progress | User-configured goal name and target, such as `FIRE`, `$145.3K / $1.5M`, and a progress bar. | `/settings?section=goals`. | Default current value is Total Net Worth. If the user configures a scoped goal, use that scoped value instead. |
 | Current period | Current month or reporting period, such as `Jun 2026`. | Future period selector. | Keep as display-only for the first implementation. |
-| Data status chips | Local-first, Mock SimpleFIN, updated/stale/sync issue states. | `/accounts`. | Status details belong on Accounts. |
+| Data status chips | Local-first, SimpleFIN, updated/stale/sync issue states. | `/accounts`. | Status details belong on Accounts. |
 | Primary action | `Add data`. | Add-data menu or first supported target. | Menu items can include Import CSV, Add manual account, Add holding, and Connect SimpleFIN. |
 
 ### 7.3 Dashboard KPI cards
@@ -220,7 +215,7 @@ Total Net Worth belongs in the header, so KPI cards should not duplicate it. Rec
 | KPI | Displays | Click target | Notes |
 |---|---|---|---|
 | Cash | Available cash, short-term liquidity, or next cash event. | `/cash`. | Use checking + savings + cash as the MVP value. |
-| Investments | Portfolio value/return or setup CTA. | `/investments`. | Show `Add holdings` while investment tracking is deferred. |
+| Investments | Portfolio value, cost basis, unrealized gain, or setup CTA. | `/investments`. | Show manual holdings and allocation while external market-data valuation remains deferred. |
 | Spending | Current month spending and budget usage. | `/spending`. | Recurring costs and spending insights are summarized here and expanded on Spending. |
 | Accounts | Connected/manual account count, sync health, or data freshness. | `/accounts`. | This also supports data status chip details. |
 | Recap | Latest monthly/quarterly recap status. | `/recap`. | Show `May recap ready` when enough period data exists. |
@@ -266,10 +261,10 @@ Backend completed:
 
 Frontend completed:
 
-1. Added typed API helpers for accounts, mock SimpleFIN status/actions, and cashflow forecast.
-2. Replaced `/accounts` placeholder with SimpleFIN Bridge status, cash accounts, credit cards, institution visuals, source labels, one-line account rows, row-click detail/update modals, manual CRUD, statement import entry, delete confirmation, and mock SimpleFIN controls.
+1. Added typed API helpers for accounts, SimpleFIN status/actions, and cashflow forecast.
+2. Replaced `/accounts` placeholder with SimpleFIN Bridge status, cash accounts, credit cards, institution visuals, source labels, one-line account rows, row-click detail/update modals, manual CRUD, statement import entry, delete confirmation, and SimpleFIN controls.
 3. Replaced `/cash` placeholder with compact liquidity header, four clickable KPI cards, compact 30/60/90 forecast, cash account distribution, and account drill-down tables.
-4. Added Accounts to the main sidebar and kept Settings deferred.
+4. Added Accounts to the main sidebar; Settings was added later in the 2026-06-09 MVP slice.
 5. Polished Dashboard/Cash typography, Dashboard trend endpoint marker, and FinSight brand logo.
 
 2026-06-05 Accounts frontend polish:
@@ -290,7 +285,26 @@ npm run build:web
 
 ## 9. Remaining task plan
 
+### 9.0 Completed 2026-06-09 MVP pages
+
+Completed:
+
+1. Replaced `/recap` placeholder with a period recap page backed by `GET /api/analytics/monthly-spending?month=YYYY-MM`.
+2. Expanded Spending with category budget threshold states, recurring cost drill-downs, and period-preserving Transactions links.
+3. Added manual holding schemas, local/SQL persistence, `GET`/`POST`/`PATCH`/`DELETE /api/holdings`, `GET /api/portfolio`, and a usable Investments page.
+4. Replaced `/settings` placeholder with budget, category budget, forecast, currency/timezone, AI privacy, and local-first controls, then added Settings to the main sidebar.
+
+Verification:
+
+```powershell
+npm run test:api
+npm run test:web
+npm run build:web
+```
+
 ### 9.1 Recap page
+
+Status: Implemented on 2026-06-09.
 
 Goal: make `/recap` the period summary page used by Cash in-flow/out-flow drill-downs.
 
@@ -308,6 +322,8 @@ Acceptance:
 
 ### 9.2 Spending expansion
 
+Status: Implemented on 2026-06-09.
+
 Goal: turn Spending into the primary expense analysis page.
 
 Tasks:
@@ -323,6 +339,8 @@ Acceptance:
 - Budget warnings can feed Dashboard alerts.
 
 ### 9.3 Investments MVP
+
+Status: Implemented on 2026-06-09.
 
 Goal: make Investments usable as a setup-first manual holdings page.
 
@@ -340,6 +358,8 @@ Acceptance:
 
 ### 9.4 Settings MVP
 
+Status: Implemented on 2026-06-09.
+
 Goal: add Settings after the current working surfaces need configurable assumptions.
 
 Tasks:
@@ -356,14 +376,16 @@ Acceptance:
 
 ### 9.5 True account connectivity
 
+Status: Implemented on 2026-06-11.
+
 Goal: replace mock SimpleFIN behavior with real integration behind the same UI contract.
 
-Tasks:
+Completed:
 
-1. Add credential handling and secure local storage strategy.
-2. Replace mock connect/sync/disconnect adapter.
-3. Add sync freshness, error, and retry states.
-4. Add integration tests around source update/delete behavior and imported account read-only balance handling.
+1. Added local credential storage for the claimed SimpleFIN access URL, defaulting to `~/.finsight/simplefin_credentials.json` with `FINSIGHT_SIMPLEFIN_CREDENTIAL_PATH` override support.
+2. Replaced mock connect/sync/disconnect endpoints with a real SimpleFIN client that claims setup tokens and fetches `/accounts`.
+3. Added sync freshness, sanitized error messages, retry count, and next retry state to the API response and Accounts panel.
+4. Added integration tests for token claim, credential persistence, account/transaction sync, sanitized error/retry state, and disconnect cleanup.
 
 Acceptance:
 

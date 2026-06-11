@@ -123,10 +123,14 @@ describe("SpendingView", () => {
     expect(categoryBreakdown.getByText("7.5%")).toBeInTheDocument();
     expect(document.querySelector(".spending-category-chart .bar-track")).not.toBeInTheDocument();
 
-    const groceriesLink = screen.getByRole("link", { name: /Groceries/ });
+    const groceriesLink = categoryBreakdown.getByRole("link", { name: /Groceries/ });
     expect(groceriesLink).toHaveAttribute("href", "/transactions?month=2026-05&category=Groceries");
     const loblawsLink = screen.getByRole("link", { name: /Loblaws/ });
     expect(loblawsLink).toHaveAttribute("href", "/transactions?month=2026-05&merchant=Loblaws");
+    expect(screen.getByText("Budget watchlist")).toBeInTheDocument();
+    expect(screen.getAllByText("Watch pace").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Recurring costs")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open Netflix recurring transactions" })).toHaveAttribute("href", "/transactions?month=2026-05&merchant=Netflix");
   });
 
   it("switches budget chart between monthly comparison and weekly spend", () => {

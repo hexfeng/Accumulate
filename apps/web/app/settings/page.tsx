@@ -1,14 +1,15 @@
 import { AppShell } from "@/components/app-shell";
-import { PlaceholderView } from "@/components/placeholder-view";
+import { SettingsView } from "@/components/settings-view";
+import { getSettings } from "@/lib/api";
 
-export default function SettingsPage() {
+export const dynamic = "force-dynamic";
+
+export default async function SettingsPage() {
+  const settings = await getSettings();
+
   return (
     <AppShell>
-      <PlaceholderView
-        description="Mock settings placeholder. Goal configuration and product preferences will live here once those flows are ready."
-        eyebrow="Mock setup"
-        title="Settings"
-      />
+      <SettingsView initialSettings={settings} />
     </AppShell>
   );
 }

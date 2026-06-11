@@ -363,6 +363,12 @@ td small,
   gap: 14px;
 }
 
+.settings-grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .forecast-row {
   align-items: center;
   display: grid;
@@ -483,7 +489,8 @@ th {
 
   .metric-grid,
   .metric-grid.three,
-  .dashboard-layout {
+  .dashboard-layout,
+  .settings-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1176,7 +1183,7 @@ th {
   border-radius: 20px;
   display: grid;
   gap: 18px;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.9fr) auto;
+  grid-template-columns: minmax(220px, 1fr) minmax(320px, 1fr) minmax(220px, 0.7fr) auto;
   padding: 20px;
 }
 
@@ -1196,6 +1203,11 @@ th {
   font-size: var(--fs-body, 0.94rem);
   margin: 0;
   max-width: 620px;
+}
+
+.source-status-main .source-error-detail {
+  color: #b45309;
+  font-weight: 760;
 }
 
 .source-health-grid {
@@ -1225,9 +1237,39 @@ th {
 
 .source-health-tile strong,
 .account-group-total strong {
-  font-size: 1.18rem;
+  font-size: clamp(0.78rem, 0.95vw, 1.18rem);
   line-height: 1.1;
   text-transform: capitalize;
+}
+
+.simplefin-token-form {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.simplefin-token-form span {
+  color: var(--muted);
+  font-size: var(--fs-label, 0.82rem);
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.simplefin-token-form input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+  min-width: 0;
+  padding: 10px 12px;
+}
+
+.simplefin-token-form input:focus {
+  border-color: rgba(60, 91, 212, 0.45);
+  box-shadow: 0 0 0 3px rgba(60, 91, 212, 0.14);
+  outline: none;
 }
 
 .accounts-primary-grid {
@@ -1300,6 +1342,9 @@ th {
 }
 
 .account-row-button {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
   color: var(--text);
   font: inherit;
 }
@@ -5036,13 +5081,45 @@ body {
   text-transform: uppercase;
 }
 
-.budget-input-row input {
+.budget-input-row input,
+.budget-input-row select {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
   color: var(--text);
   font: inherit;
   padding: 11px 12px;
+}
+
+.settings-check-row {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-weight: 750;
+  gap: 10px;
+}
+
+.settings-check-row input {
+  accent-color: var(--primary);
+  height: 18px;
+  width: 18px;
+}
+
+.table-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.table-action-row button {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: var(--fs-small);
+  font-weight: 800;
+  padding: 8px 10px;
 }
 
 .recurring-dialog {
@@ -6329,6 +6406,122 @@ tbody tr:hover {
 
 .app-shell.theme-dark .spending-summary-note a {
   color: #89f3ff;
+}
+
+.app-shell.theme-dark .hero-period,
+.app-shell.theme-dark .spending-budget-row,
+.app-shell.theme-dark .account-spend-row,
+.app-shell.theme-dark .table-action-row button,
+.app-shell.theme-dark .bank-visual-image,
+.app-shell.theme-dark .card-visual-image {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.13);
+  box-shadow: none;
+  color: var(--text);
+}
+
+.app-shell.theme-dark .select-control,
+.app-shell.theme-dark .table-select,
+.app-shell.theme-dark .status-chip,
+.app-shell.theme-dark .workspace-actions a,
+.app-shell.theme-dark .cash-account-actions a,
+.app-shell.theme-dark .source-actions button,
+.app-shell.theme-dark .row-actions button,
+.app-shell.theme-dark .account-row-controls a,
+.app-shell.theme-dark .account-row-controls button,
+.app-shell.theme-dark .account-detail-link,
+.app-shell.theme-dark .placeholder-secondary,
+.app-shell.theme-dark .account-form input,
+.app-shell.theme-dark .account-form select,
+.app-shell.theme-dark .account-edit-grid input,
+.app-shell.theme-dark .account-edit-grid select,
+.app-shell.theme-dark .budget-input-row input,
+.app-shell.theme-dark .budget-input-row select,
+.app-shell.theme-dark .simplefin-token-form input,
+.app-shell.theme-dark .account-dialog-header button,
+.app-shell.theme-dark .chart-mode-toggle button[aria-pressed="true"],
+.app-shell.theme-dark .range-controls button[aria-pressed="true"],
+.app-shell.theme-dark .account-dialog-tabs button.active {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color: var(--text);
+}
+
+.app-shell.theme-dark .select-control:focus,
+.app-shell.theme-dark .table-select:focus,
+.app-shell.theme-dark .account-form input:focus,
+.app-shell.theme-dark .account-form select:focus,
+.app-shell.theme-dark .account-edit-grid input:focus,
+.app-shell.theme-dark .account-edit-grid select:focus,
+.app-shell.theme-dark .budget-input-row input:focus,
+.app-shell.theme-dark .budget-input-row select:focus,
+.app-shell.theme-dark .simplefin-token-form input:focus {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(138, 180, 248, 0.52);
+  box-shadow: 0 0 0 3px rgba(138, 180, 248, 0.16);
+}
+
+.app-shell.theme-dark .chart-mode-toggle,
+.app-shell.theme-dark .range-controls,
+.app-shell.theme-dark .account-dialog-tabs,
+.app-shell.theme-dark .account-group-panel .account-list,
+.app-shell.theme-dark .accounts-primary-grid .account-list,
+.app-shell.theme-dark .simple-table,
+.app-shell.theme-dark .recurring-calendar-grid,
+.app-shell.theme-dark .account-transaction-list,
+.app-shell.theme-dark .asset-distribution-track {
+  background: rgba(255, 255, 255, 0.045);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: none;
+}
+
+.app-shell.theme-dark .accounts-primary-grid .account-row,
+.app-shell.theme-dark .account-group-panel .account-row,
+.app-shell.theme-dark .cash-tables-grid .simple-table-row,
+.app-shell.theme-dark .recurring-calendar-day,
+.app-shell.theme-dark .account-transaction-row,
+.app-shell.theme-dark .account-row-button:hover,
+.app-shell.theme-dark .account-spend-row:hover,
+.app-shell.theme-dark .account-spend-row.active,
+.app-shell.theme-dark tbody tr:hover {
+  background: rgba(255, 255, 255, 0.065);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.app-shell.theme-dark .account-group-panel .account-row + .account-row {
+  border-top-color: rgba(255, 255, 255, 0.12);
+}
+
+.app-shell.theme-dark .inline-status {
+  background: rgba(81, 211, 163, 0.12);
+  border-color: rgba(81, 211, 163, 0.2);
+  color: #9ff0cf;
+}
+
+.app-shell.theme-dark .inline-error {
+  background: rgba(255, 138, 120, 0.12);
+  border-color: rgba(255, 138, 120, 0.22);
+  color: #ffb7aa;
+}
+
+.app-shell.theme-dark .source-status-main .source-error-detail {
+  color: #ffb7aa;
+}
+
+.app-shell.theme-dark .source-badge {
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: none;
+}
+
+.app-shell.theme-dark .primary-action-button,
+.app-shell.theme-dark .accounts-hero-action-button,
+.app-shell.theme-dark .spending-budget-row button,
+.app-shell.theme-dark .account-spend-panel .panel-heading button,
+.app-shell.theme-dark .hero-primary-action,
+.app-shell.theme-dark .placeholder-primary {
+  border-color: rgba(138, 180, 248, 0.3);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.24);
 }
 
 @media (max-width: 900px) {
