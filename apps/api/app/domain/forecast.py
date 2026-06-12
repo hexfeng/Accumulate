@@ -24,7 +24,7 @@ def build_cashflow_forecast(accounts: list[Account], transactions: list[Transact
     monthly_spending = sum(
         abs(txn.amount)
         for txn in transactions
-        if txn.amount < 0 and not txn.is_excluded_from_spending and txn.category not in {"Income", "Transfer"}
+        if txn.amount < 0 and not txn.is_excluded_from_spending and txn.category not in {"Income", "Payment", "Transfer"}
     )
 
     points: list[CashflowForecastPoint] = []

@@ -9,7 +9,8 @@ DEFAULT_RULES: list[CategoryRule] = [
     CategoryRule(id="global_spotify", pattern="spotify", merchant="Spotify", category="Subscriptions", priority=26),
     CategoryRule(id="global_subscription", pattern="prime|disney", merchant="Subscription", category="Subscriptions", priority=30),
     CategoryRule(id="global_income", pattern="payroll|salary|deposit", merchant="Payroll", category="Income", priority=10),
-    CategoryRule(id="global_transfer", pattern="transfer|e-transfer|payment", merchant="Transfer", category="Transfer", priority=15),
+    CategoryRule(id="global_payment", pattern="payment received|bill pay|amex-co|card products|to amex|rogersbank", merchant="Credit card payment", category="Payment", priority=12),
+    CategoryRule(id="global_transfer", pattern="transfer|e-transfer|preauthorized debit|withdrawal", merchant="Transfer", category="Transfer", priority=15),
 ]
 
 
@@ -30,8 +31,8 @@ def categorize_transaction(transaction: Transaction, rules: list[CategoryRule] |
                     "merchant_normalized": rule.merchant,
                     "category": rule.category,
                     "subcategory": rule.subcategory,
-                    "transaction_type": "income" if rule.category == "Income" else "transfer" if rule.category == "Transfer" else "expense",
-                    "is_excluded_from_spending": transaction.is_excluded_from_spending or rule.category == "Transfer",
+                    "transaction_type": "income" if rule.category == "Income" else "payment" if rule.category == "Payment" else "transfer" if rule.category == "Transfer" else "expense",
+                    "is_excluded_from_spending": transaction.is_excluded_from_spending or rule.category in {"Payment", "Transfer"},
                     "confidence": 0.95 if rule.user_id else 0.75,
                 }
             )

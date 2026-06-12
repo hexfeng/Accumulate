@@ -1,10 +1,11 @@
 from fastapi.testclient import TestClient
 
 from app.main import create_app
+from app.store import LocalStore
 
 
 def make_client() -> TestClient:
-    return TestClient(create_app())
+    return TestClient(create_app(store=LocalStore()))
 
 
 def test_csv_import_is_deduplicated_and_visible_in_transactions():
@@ -125,6 +126,25 @@ def test_holding_crud_and_portfolio_snapshot():
     assert delete_response.status_code == 200
     assert delete_response.json() == {"deleted_holding_id": "vfv-to"}
     assert client.get("/api/holdings").json() == []
+
+
+def test_portfolio_snapshot_uses_investment_account_balances_without_holdings():
+    client = make_client()
+    client.post(
+        "/api/accounts",
+        json={"name": "Self Directed TFSA", "type": "investment", "balance": 10776.13, "currency": "CAD"},
+    )
+    client.post(
+        "/api/accounts",
+        json={"name": "Self Directed RRSP", "type": "investment", "balance": 2151.86, "currency": "CAD"},
+    )
+
+    portfolio = client.get("/api/portfolio").json()
+
+    assert portfolio["total_value"] == 12927.99
+    assert portfolio["total_cost"] == 12927.99
+    assert portfolio["unrealized_gain"] == 0
+    assert [account["account_name"] for account in portfolio["accounts"]] == ["Self Directed TFSA", "Self Directed RRSP"]
 
 
 def test_transaction_category_patch_creates_user_rule_for_future_matches():

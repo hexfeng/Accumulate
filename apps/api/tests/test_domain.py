@@ -6,7 +6,8 @@ from app.domain.forecast import build_cashflow_forecast
 from app.domain.net_worth import build_net_worth_history
 from app.domain.normalization import normalize_csv_transaction
 from app.domain.recurring import detect_recurring_items
-from app.domain.schemas import Account, BudgetSettings, CategoryRule, CsvTransactionRow, Transaction
+from app.domain.schemas import Account, AccountBalanceSnapshot, BudgetSettings, CategoryRule, CsvTransactionRow, Transaction
+from app.domain.transaction_classification import normalize_internal_flows
 
 
 USER_ID = "local-user"
@@ -112,6 +113,81 @@ def test_monthly_summary_excludes_income_transfers_and_excluded_transactions():
     assert summary.categories[0].budget_used_pct == 25.65
 
 
+def test_internal_transfer_pairs_are_excluded_from_income_and_spending():
+    transactions = [
+        Transaction(
+            id="cibc-out",
+            user_id=USER_ID,
+            account_id="cibc",
+            account_name="CIBC Chequing",
+            account_type="checking",
+            transaction_date=date(2026, 6, 5),
+            amount=-2000,
+            currency="CAD",
+            merchant_raw="PREAUTHORIZED DEBIT Wealthsimple Investments Inc.",
+            description_raw="PREAUTHORIZED DEBIT Wealthsimple Investments Inc.",
+        ),
+        Transaction(
+            id="rrsp-in",
+            user_id=USER_ID,
+            account_id="rrsp",
+            account_name="Self Directed RRSP",
+            account_type="investment",
+            transaction_date=date(2026, 6, 5),
+            amount=2000,
+            currency="CAD",
+            merchant_raw="Deposit",
+            description_raw="Deposit",
+        ),
+    ]
+
+    normalized = normalize_internal_flows(transactions)
+    summary = build_monthly_summary(normalized, BudgetSettings(monthly_budget=3000), date(2026, 6, 1))
+
+    assert {transaction.category for transaction in normalized} == {"Transfer"}
+    assert all(transaction.is_excluded_from_spending for transaction in normalized)
+    assert summary.total_income == 0
+    assert summary.total_spending == 0
+
+
+def test_credit_card_inflows_are_payments_and_matching_outflows_are_excluded():
+    transactions = [
+        Transaction(
+            id="cash-out",
+            user_id=USER_ID,
+            account_id="cash",
+            account_name="Wealthsimple Cash",
+            account_type="cash",
+            transaction_date=date(2026, 6, 5),
+            amount=-300,
+            currency="CAD",
+            merchant_raw="AMEX-CO",
+            description_raw="AMEX-CO",
+        ),
+        Transaction(
+            id="amex-in",
+            user_id=USER_ID,
+            account_id="amex",
+            account_name="American Express Cobalt Card",
+            account_type="credit_card",
+            transaction_date=date(2026, 6, 8),
+            amount=300,
+            currency="CAD",
+            merchant_raw="PAYMENT RECEIVED - THANK YOU",
+            description_raw="PAYMENT RECEIVED - THANK YOU",
+        ),
+    ]
+
+    normalized = normalize_internal_flows(transactions)
+    summary = build_monthly_summary(normalized, BudgetSettings(monthly_budget=3000), date(2026, 6, 1))
+
+    assert {transaction.category for transaction in normalized} == {"Payment"}
+    assert all(transaction.transaction_type == "payment" for transaction in normalized)
+    assert all(transaction.is_excluded_from_spending for transaction in normalized)
+    assert summary.total_income == 0
+    assert summary.total_spending == 0
+
+
 def test_recurring_detection_finds_monthly_subscription():
     transactions = [
         Transaction(
@@ -196,3 +272,127 @@ def test_net_worth_history_uses_account_balance_sum_as_current_value():
     assert len(history.points) > 1
     assert history.points[-1].value == history.current_value
     assert history.change_amount == round(history.current_value - history.points[0].value, 2)
+
+
+def test_net_worth_history_uses_balance_snapshots_when_available():
+    accounts = [
+        Account(id="checking", user_id=USER_ID, name="CIBC Chequing", type="checking", balance=4200, currency="CAD"),
+        Account(id="visa", user_id=USER_ID, name="CIBC Visa", type="credit_card", balance=-700, currency="CAD"),
+    ]
+    snapshots = [
+        AccountBalanceSnapshot(
+            account_id="checking",
+            account_name="CIBC Chequing",
+            snapshot_date=date(2026, 6, 1),
+            balance=3000,
+            currency="CAD",
+            captured_at="2026-06-01T12:00:00+00:00",
+        ),
+        AccountBalanceSnapshot(
+            account_id="visa",
+            account_name="CIBC Visa",
+            snapshot_date=date(2026, 6, 1),
+            balance=-500,
+            currency="CAD",
+            captured_at="2026-06-01T12:00:00+00:00",
+        ),
+        AccountBalanceSnapshot(
+            account_id="checking",
+            account_name="CIBC Chequing",
+            snapshot_date=date(2026, 6, 11),
+            balance=4200,
+            currency="CAD",
+            captured_at="2026-06-11T12:00:00+00:00",
+        ),
+        AccountBalanceSnapshot(
+            account_id="visa",
+            account_name="CIBC Visa",
+            snapshot_date=date(2026, 6, 11),
+            balance=-700,
+            currency="CAD",
+            captured_at="2026-06-11T12:00:00+00:00",
+        ),
+    ]
+
+    history = build_net_worth_history(accounts, "1M", snapshots=snapshots, as_of=date(2026, 6, 11))
+
+    assert history.current_value == 3500
+    assert [(point.date, point.value) for point in history.points] == [
+        (date(2026, 6, 1), 2500),
+        (date(2026, 6, 11), 3500),
+    ]
+    assert history.change_amount == 1000
+    assert history.coverage_start == date(2026, 6, 1)
+    assert history.coverage_end == date(2026, 6, 11)
+    assert history.is_estimated is False
+
+
+def test_net_worth_history_estimates_from_transactions_when_only_current_snapshot_exists():
+    accounts = [
+        Account(id="checking", user_id=USER_ID, name="BMO Chequing", type="checking", balance=2000, currency="CAD"),
+        Account(id="visa", user_id=USER_ID, name="Wealthsimple Visa", type="credit_card", balance=-250, currency="CAD"),
+    ]
+    snapshots = [
+        AccountBalanceSnapshot(
+            account_id="checking",
+            account_name="BMO Chequing",
+            snapshot_date=date(2026, 6, 11),
+            balance=2000,
+            currency="CAD",
+            captured_at="2026-06-11T12:00:00+00:00",
+        ),
+        AccountBalanceSnapshot(
+            account_id="visa",
+            account_name="Wealthsimple Visa",
+            snapshot_date=date(2026, 6, 11),
+            balance=-250,
+            currency="CAD",
+            captured_at="2026-06-11T12:00:00+00:00",
+        ),
+    ]
+    transactions = [
+        Transaction(
+            id="payroll",
+            user_id=USER_ID,
+            account_id="checking",
+            account_name="BMO Chequing",
+            account_type="checking",
+            transaction_date=date(2026, 6, 3),
+            amount=1200,
+            currency="CAD",
+            merchant_raw="PAYROLL",
+            description_raw="PAYROLL",
+            category="Income",
+        ),
+        Transaction(
+            id="grocery",
+            user_id=USER_ID,
+            account_id="visa",
+            account_name="Wealthsimple Visa",
+            account_type="credit_card",
+            transaction_date=date(2026, 6, 8),
+            amount=-150,
+            currency="CAD",
+            merchant_raw="GROCERY",
+            description_raw="GROCERY",
+            category="Groceries",
+        ),
+    ]
+
+    history = build_net_worth_history(
+        accounts,
+        "1M",
+        snapshots=snapshots,
+        transactions=transactions,
+        as_of=date(2026, 6, 11),
+    )
+
+    assert history.current_value == 1750
+    assert len(history.points) > 1
+    assert history.points[0].date == date(2026, 6, 2)
+    assert history.points[0].value == 700
+    assert history.points[-1].date == date(2026, 6, 11)
+    assert history.points[-1].value == 1750
+    assert history.coverage_start == date(2026, 6, 2)
+    assert history.coverage_end == date(2026, 6, 11)
+    assert history.is_estimated is True

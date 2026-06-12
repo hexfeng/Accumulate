@@ -1,7 +1,19 @@
-import { demoDashboard, demoHoldings, demoNetWorthHistoryByRange, demoPortfolio, demoSettings, demoTransactions } from "./demo-data";
+import { demoHoldings, demoPortfolio, demoSettings } from "./demo-data";
 import type { Account, AccountDeleteResponse, AccountInput, BudgetSettings, CashflowForecast, DashboardSnapshot, Holding, HoldingDeleteResponse, HoldingInput, MonthlySummary, NetWorthHistory, NetWorthRange, PortfolioSnapshot, SimpleFinActionResponse, SimpleFinStatus, Transaction } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
+const EMPTY_FORECAST: CashflowForecast = {
+  as_of: todayISODate(),
+  points: [],
+  assumptions: {}
+};
+
+const EMPTY_DASHBOARD: DashboardSnapshot = {
+  accounts: [],
+  monthly_summary: emptyMonthlySummary(),
+  recurring_items: [],
+  forecast: EMPTY_FORECAST
+};
 
 async function getJson<T>(path: string, fallback: T): Promise<T> {
   try {
@@ -16,15 +28,15 @@ async function getJson<T>(path: string, fallback: T): Promise<T> {
 }
 
 export function getDashboard(): Promise<DashboardSnapshot> {
-  return getJson("/api/dashboard", demoDashboard);
+  return getJson("/api/dashboard", EMPTY_DASHBOARD);
 }
 
 export function getAccounts(): Promise<Account[]> {
-  return getJson("/api/accounts", demoDashboard.accounts);
+  return getJson("/api/accounts", []);
 }
 
 export function getCashflowForecast(): Promise<CashflowForecast> {
-  return getJson("/api/analytics/cashflow-forecast", demoDashboard.forecast);
+  return getJson("/api/analytics/cashflow-forecast", EMPTY_FORECAST);
 }
 
 export function getSimpleFinStatus(): Promise<SimpleFinStatus> {
@@ -39,16 +51,16 @@ export function getSimpleFinStatus(): Promise<SimpleFinStatus> {
 }
 
 export function getNetWorthHistory(range: NetWorthRange = "1M"): Promise<NetWorthHistory> {
-  return getJson(`/api/net-worth/history?range=${range}`, demoNetWorthHistoryByRange[range]);
+  return getJson(`/api/net-worth/history?range=${range}`, emptyNetWorthHistory(range));
 }
 
 export function getTransactions(): Promise<Transaction[]> {
-  return getJson("/api/transactions", demoTransactions);
+  return getJson("/api/transactions", []);
 }
 
 export function getMonthlySpending(month?: string): Promise<MonthlySummary> {
   const path = month ? `/api/analytics/monthly-spending?month=${encodeURIComponent(month)}` : "/api/analytics/monthly-spending";
-  return getJson(path, month ? { ...demoDashboard.monthly_summary, month } : demoDashboard.monthly_summary);
+  return getJson(path, emptyMonthlySummary(month));
 }
 
 export function getSettings(): Promise<BudgetSettings> {
@@ -142,4 +154,40 @@ async function sendJson<T>(path: string, method: "POST" | "PATCH" | "PUT" | "DEL
     throw new Error(message);
   }
   return (await response.json()) as T;
+}
+
+function emptyMonthlySummary(month = currentMonth()): MonthlySummary {
+  return {
+    month,
+    total_income: 0,
+    total_spending: 0,
+    net_cashflow: 0,
+    monthly_budget: 0,
+    budget_used_pct: 0,
+    categories: [],
+    merchants: []
+  };
+}
+
+function emptyNetWorthHistory(range: NetWorthRange): NetWorthHistory {
+  return {
+    range,
+    current_value: 0,
+    change_amount: 0,
+    change_pct: 0,
+    points: [],
+    coverage_start: null,
+    coverage_end: null,
+    is_estimated: true
+  };
+}
+
+function currentMonth() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function todayISODate() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }

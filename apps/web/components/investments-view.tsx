@@ -32,7 +32,9 @@ export function InvestmentsView({ accounts, initialHoldings, initialPortfolio }:
     const investmentAccounts = accounts.filter((account) => account.type === "investment");
     return investmentAccounts.length > 0 ? investmentAccounts : accounts;
   }, [accounts]);
-  const portfolio = useMemo(() => buildPortfolioSnapshot(holdings, initialPortfolio), [holdings, initialPortfolio]);
+  const investmentAccounts = useMemo(() => accounts.filter((account) => account.type === "investment"), [accounts]);
+  const portfolio = useMemo(() => buildPortfolioSnapshot(holdings, initialPortfolio, investmentAccounts), [holdings, initialPortfolio, investmentAccounts]);
+  const isSimpleFinBalancePortfolio = holdings.length === 0 && investmentAccounts.length > 0;
 
   function openAddDialog() {
     setEditingHolding(null);
@@ -88,8 +90,8 @@ export function InvestmentsView({ accounts, initialHoldings, initialPortfolio }:
       </header>
 
       <div className="spending-summary-grid">
-        <MetricCard label="Portfolio value" value={formatCurrency(portfolio.total_value)} meta={`${holdings.length} holdings`} />
-        <MetricCard label="Cost basis" value={formatCurrency(portfolio.total_cost)} meta="Manual average cost" />
+        <MetricCard label="Portfolio value" value={formatCurrency(portfolio.total_value)} meta={isSimpleFinBalancePortfolio ? "SimpleFIN balances" : `${holdings.length} holdings`} />
+        <MetricCard label="Cost basis" value={formatCurrency(portfolio.total_cost)} meta={isSimpleFinBalancePortfolio ? "Balance basis until holdings sync" : "Manual average cost"} />
         <MetricCard label="Unrealized gain" value={formatCurrency(portfolio.unrealized_gain)} meta={formatPercent(portfolio.unrealized_gain_pct)} />
         <MetricCard label="Accounts" value={String(portfolio.accounts.length)} meta="Investment groups" />
       </div>
@@ -113,7 +115,7 @@ export function InvestmentsView({ accounts, initialHoldings, initialPortfolio }:
               ))}
             </div>
           ) : (
-            <p className="empty-copy">Add holdings to calculate allocation.</p>
+            <p className="empty-copy">Add holdings or sync investment balances to calculate allocation.</p>
           )}
         </article>
 
@@ -128,14 +130,14 @@ export function InvestmentsView({ accounts, initialHoldings, initialPortfolio }:
                 <div className="list-row" key={account.account_id}>
                   <span>
                     <strong>{account.account_name}</strong>
-                    <small>{account.holdings_count} holdings</small>
+                    <small>{account.holdings_count > 0 ? `${account.holdings_count} holdings` : "SimpleFIN balances"}</small>
                   </span>
                   <b>{formatCurrency(account.value)}</b>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="empty-copy">No investment accounts have holdings yet.</p>
+            <p className="empty-copy">No investment accounts have holdings or synced balances yet.</p>
           )}
         </article>
       </div>
@@ -290,9 +292,30 @@ function HoldingDialog({
   );
 }
 
-function buildPortfolioSnapshot(holdings: Holding[], fallback: PortfolioSnapshot): PortfolioSnapshot {
+function buildPortfolioSnapshot(holdings: Holding[], fallback: PortfolioSnapshot, investmentAccounts: Account[]): PortfolioSnapshot {
   if (holdings.length === 0) {
-    return { ...fallback, total_value: 0, total_cost: 0, unrealized_gain: 0, unrealized_gain_pct: 0, allocation: [], accounts: [] };
+    if (investmentAccounts.length === 0) {
+      return { ...fallback, total_value: 0, total_cost: 0, unrealized_gain: 0, unrealized_gain_pct: 0, allocation: [], accounts: [] };
+    }
+    const positiveAccounts = investmentAccounts.filter((account) => account.balance > 0);
+    const totalValue = money(positiveAccounts.reduce((sum, account) => sum + account.balance, 0));
+    return {
+      total_value: totalValue,
+      total_cost: totalValue,
+      unrealized_gain: 0,
+      unrealized_gain_pct: 0,
+      allocation: positiveAccounts.map((account) => ({
+        label: account.name,
+        value: money(account.balance),
+        percent: totalValue > 0 ? money((account.balance / totalValue) * 100) : 0
+      })),
+      accounts: positiveAccounts.map((account) => ({
+        account_id: account.id,
+        account_name: account.name,
+        holdings_count: 0,
+        value: money(account.balance)
+      }))
+    };
   }
   const totalValue = money(holdings.reduce((sum, holding) => sum + holding.quantity * holding.market_price, 0));
   const totalCost = money(holdings.reduce((sum, holding) => sum + holding.quantity * holding.average_cost, 0));

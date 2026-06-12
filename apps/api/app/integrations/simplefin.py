@@ -10,11 +10,13 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable
-from urllib.parse import unquote, urlparse, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, unquote, urlencode, urlparse, urlsplit, urlunsplit
 
 
 HttpRequest = Callable[[str, str, dict[str, str] | None], "SimpleFinHttpResponse"]
 SIMPLEFIN_USER_AGENT = "FinSight/0.1 SimpleFIN local client"
+SIMPLEFIN_TRANSACTION_LOOKBACK_DAYS = 45
+SIMPLEFIN_INITIAL_BACKFILL_DAYS = 365
 
 
 class SimpleFinError(Exception):
@@ -98,9 +100,15 @@ class SimpleFinClient:
         _require_https(access_url, "SimpleFIN access URL")
         return access_url
 
-    def fetch_accounts(self, access_url: str) -> dict[str, Any]:
+    def fetch_accounts(
+        self,
+        access_url: str,
+        synced_at: str | None = None,
+        start_at: datetime | None = None,
+        end_at: datetime | None = None,
+    ) -> dict[str, Any]:
         _require_https(access_url, "SimpleFIN access URL")
-        request_url, auth_header = _build_simplefin_accounts_request(access_url)
+        request_url, auth_header = _build_simplefin_accounts_request(access_url, synced_at, start_at, end_at)
         headers = {
             "Accept": "application/json",
             "User-Agent": SIMPLEFIN_USER_AGENT,
@@ -117,8 +125,9 @@ class SimpleFinClient:
         if not isinstance(response.body, dict):
             raise SimpleFinError("SimpleFIN accounts sync returned an invalid response.")
         errlist = response.body.get("errlist") or []
-        if errlist:
-            raise SimpleFinError(_sanitize_error(f"SimpleFIN accounts sync returned errors: {errlist}"))
+        fatal_errors = [error for error in errlist if not _is_nonfatal_accounts_warning(error, response.body)]
+        if fatal_errors:
+            raise SimpleFinError(_sanitize_error(f"SimpleFIN accounts sync returned errors: {fatal_errors}"))
         return response.body
 
 
@@ -145,7 +154,7 @@ class SimpleFinService:
         message = str(state.get("message") or _message_for_status(status, has_credentials))
         return self._response(status=status, message=message, state=state)
 
-    def connect(self, setup_token: str | None) -> dict[str, Any]:
+    def connect(self, setup_token: str | None, store: Any | None = None) -> dict[str, Any]:
         if not setup_token:
             state = self.credential_store.load_state()
             state.update(
@@ -164,6 +173,19 @@ class SimpleFinService:
         except SimpleFinError as error:
             return self._record_error(error)
 
+        synced_at = self.now()
+        try:
+            if store is not None:
+                end_at = _parse_sync_datetime(synced_at)
+                self._sync_windows(store, access_url, synced_at, _initial_backfill_windows(end_at))
+                _reclassify_store_transactions(store)
+        except SimpleFinError as error:
+            state = self.credential_store.load_state()
+            state.update({"access_url": access_url, "has_credentials": True})
+            self.credential_store.save_state(state)
+            return self._record_error(error)
+
+        coverage = store.simplefin_transaction_coverage() if store is not None and hasattr(store, "simplefin_transaction_coverage") else {"start_date": None, "end_date": None}
         state = self.credential_store.load_state()
         state.update(
             {
@@ -171,6 +193,10 @@ class SimpleFinService:
                 "has_credentials": True,
                 "status": "connected",
                 "message": "SimpleFIN connection saved locally.",
+                "last_synced_at": synced_at if store is not None else state.get("last_synced_at"),
+                "backfill_completed_at": synced_at if store is not None else state.get("backfill_completed_at"),
+                "transaction_coverage_start": coverage.get("start_date"),
+                "transaction_coverage_end": coverage.get("end_date"),
                 "last_error": None,
                 "retry_count": 0,
                 "next_retry_at": None,
@@ -188,18 +214,29 @@ class SimpleFinService:
             return self._response(status="unconfigured", message=state["message"], state=state)
 
         try:
-            account_set = self.client.fetch_accounts(access_url)
             synced_at = self.now()
-            store.import_simplefin_account_set(account_set, synced_at)
+            end_at = _parse_sync_datetime(synced_at)
+            existing_coverage = store.simplefin_transaction_coverage() if hasattr(store, "simplefin_transaction_coverage") else {"start_date": None, "end_date": None}
+            should_backfill = not existing_coverage.get("start_date") or not existing_coverage.get("end_date")
+            if should_backfill:
+                self._sync_windows(store, access_url, synced_at, _initial_backfill_windows(end_at))
+            else:
+                start_at = end_at - timedelta(days=SIMPLEFIN_TRANSACTION_LOOKBACK_DAYS)
+                self._sync_windows(store, access_url, synced_at, [(start_at, end_at)])
+            _reclassify_store_transactions(store)
         except SimpleFinError as error:
             return self._record_error(error)
 
+        coverage = store.simplefin_transaction_coverage() if hasattr(store, "simplefin_transaction_coverage") else {"start_date": None, "end_date": None}
         state = self.credential_store.load_state()
         state.update(
             {
                 "status": "synced",
                 "message": "SimpleFIN sync complete.",
                 "last_synced_at": synced_at,
+                "backfill_completed_at": synced_at if should_backfill else state.get("backfill_completed_at"),
+                "transaction_coverage_start": coverage.get("start_date"),
+                "transaction_coverage_end": coverage.get("end_date"),
                 "last_error": None,
                 "retry_count": 0,
                 "next_retry_at": None,
@@ -207,6 +244,16 @@ class SimpleFinService:
         )
         self.credential_store.save_state(state)
         return self._response(status="synced", message=state["message"], state=state)
+
+    def _sync_windows(self, store: Any, access_url: str, synced_at: str, windows: list[tuple[datetime, datetime]]) -> None:
+        for start_at, end_at in windows:
+            account_set = self.client.fetch_accounts(access_url, synced_at, start_at, end_at)
+            store.import_simplefin_account_set(
+                account_set,
+                synced_at,
+                coverage_start=start_at.date().isoformat(),
+                coverage_end=end_at.date().isoformat(),
+            )
 
     def disconnect(self) -> dict[str, Any]:
         self.credential_store.clear_access_url()
@@ -246,6 +293,9 @@ class SimpleFinService:
             "message": message,
             "has_credentials": self.credential_store.has_access_url(),
             "last_synced_at": state.get("last_synced_at"),
+            "backfill_completed_at": state.get("backfill_completed_at"),
+            "transaction_coverage_start": state.get("transaction_coverage_start"),
+            "transaction_coverage_end": state.get("transaction_coverage_end"),
             "last_error": state.get("last_error"),
             "retry_count": int(state.get("retry_count") or 0),
             "next_retry_at": state.get("next_retry_at"),
@@ -288,7 +338,12 @@ def _require_https(url: str, label: str) -> None:
         raise SimpleFinError(f"{label} must be an HTTPS URL.")
 
 
-def _build_simplefin_accounts_request(access_url: str) -> tuple[str, str | None]:
+def _build_simplefin_accounts_request(
+    access_url: str,
+    synced_at: str | None = None,
+    start_at: datetime | None = None,
+    end_at: datetime | None = None,
+) -> tuple[str, str | None]:
     parsed = urlsplit(f"{access_url.rstrip('/')}/accounts")
     if not parsed.hostname:
         raise SimpleFinError("SimpleFIN access URL is invalid.")
@@ -304,8 +359,57 @@ def _build_simplefin_accounts_request(access_url: str) -> tuple[str, str | None]
         credentials = base64.b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii")
         auth_header = f"Basic {credentials}"
 
-    safe_url = urlunsplit((parsed.scheme, host, parsed.path, parsed.query, parsed.fragment))
+    query = _accounts_query(parsed.query, synced_at, start_at, end_at)
+    safe_url = urlunsplit((parsed.scheme, host, parsed.path, query, parsed.fragment))
     return safe_url, auth_header
+
+
+def _accounts_query(existing_query: str, synced_at: str | None, start_at: datetime | None = None, end_at: datetime | None = None) -> str:
+    managed_keys = {"version", "start-date", "end-date", "pending", "balances-only"}
+    query_pairs = [(key, value) for key, value in parse_qsl(existing_query, keep_blank_values=True) if key not in managed_keys]
+    end_at = end_at or _parse_sync_datetime(synced_at)
+    start_at = start_at or (end_at - timedelta(days=SIMPLEFIN_TRANSACTION_LOOKBACK_DAYS))
+    query_pairs.extend(
+        [
+            ("version", "2"),
+            ("start-date", str(int(start_at.timestamp()))),
+            ("end-date", str(int(end_at.timestamp()))),
+            ("pending", "1"),
+        ]
+    )
+    return urlencode(query_pairs)
+
+
+def _initial_backfill_windows(end_at: datetime) -> list[tuple[datetime, datetime]]:
+    start_at = end_at - timedelta(days=SIMPLEFIN_INITIAL_BACKFILL_DAYS)
+    windows: list[tuple[datetime, datetime]] = []
+    cursor = start_at
+    while cursor < end_at:
+        window_end = min(cursor + timedelta(days=SIMPLEFIN_TRANSACTION_LOOKBACK_DAYS), end_at)
+        windows.append((cursor, window_end))
+        cursor = window_end
+    return windows
+
+
+def _parse_sync_datetime(value: str | None) -> datetime:
+    if not value:
+        return datetime.now(timezone.utc)
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return datetime.now(timezone.utc)
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _is_nonfatal_accounts_warning(error: Any, body: dict[str, Any]) -> bool:
+    if not isinstance(error, dict):
+        return False
+    if error.get("code") != "gen.api":
+        return False
+    message = str(error.get("msg") or error.get("message") or "").lower()
+    return bool(body.get("accounts")) and "date range" in message and "45 days" in message
 
 
 def _sanitize_error(message: str) -> str:
@@ -333,6 +437,11 @@ def _message_for_status(status: str, has_credentials: bool) -> str:
     if status == "disconnected":
         return "SimpleFIN credentials removed from local storage."
     return "Add a SimpleFIN setup token to create a local connection."
+
+
+def _reclassify_store_transactions(store: Any) -> None:
+    if hasattr(store, "reclassify_transactions"):
+        store.reclassify_transactions()
 
 
 def _utc_now() -> str:

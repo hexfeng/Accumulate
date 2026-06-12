@@ -7,8 +7,9 @@ from sqlalchemy.engine import Engine
 
 from app.domain.categorization import DEFAULT_RULES, categorize_transaction
 from app.domain.normalization import normalize_csv_transaction
-from app.domain.schemas import Account, BudgetSettings, CategoryRule, CsvTransactionRow, Holding, PortfolioSnapshot, Transaction
-from app.store import LOCAL_USER_ID, AccountConflictError, AccountNotFoundError, _build_portfolio_snapshot, _clean_simplefin_account_name, _infer_simplefin_account_type, _money, _simplefin_account_institution, _simplefin_connection_names, _simplefin_institution_overrides, _simplefin_transaction_date, _slug
+from app.domain.schemas import Account, AccountBalanceSnapshot, BudgetSettings, CategoryRule, CsvTransactionRow, Holding, PortfolioSnapshot, Transaction
+from app.domain.transaction_classification import normalize_internal_flows
+from app.store import LOCAL_USER_ID, AccountConflictError, AccountNotFoundError, _build_portfolio_snapshot, _clean_simplefin_account_name, _date_from_iso, _infer_simplefin_account_type, _money, _normalize_simplefin_account_type, _simplefin_account_institution, _simplefin_connection_names, _simplefin_institution_overrides, _simplefin_transaction_date, _slug
 
 
 metadata = MetaData()
@@ -89,6 +90,29 @@ settings = Table(
     Column("forecast_assumptions", JSON, nullable=False, default=dict),
 )
 
+account_balance_snapshots = Table(
+    "account_balance_snapshots",
+    metadata,
+    Column("id", String, primary_key=True),
+    Column("user_id", String, nullable=False),
+    Column("account_id", String, nullable=False),
+    Column("account_name", String, nullable=False),
+    Column("snapshot_date", Date, nullable=False),
+    Column("balance", Float, nullable=False),
+    Column("currency", String, nullable=False, default="CAD"),
+    Column("captured_at", String, nullable=False),
+)
+
+simplefin_sync_coverage = Table(
+    "simplefin_sync_coverage",
+    metadata,
+    Column("id", String, primary_key=True),
+    Column("provider", String, nullable=False, default="simplefin"),
+    Column("start_date", Date, nullable=False),
+    Column("end_date", Date, nullable=False),
+    Column("synced_at", String, nullable=False),
+)
+
 
 class DatabaseStore:
     def __init__(self, database_url: str):
@@ -158,6 +182,8 @@ class DatabaseStore:
         with self.engine.begin() as connection:
             connection.execute(delete(holdings))
             connection.execute(delete(transactions))
+            connection.execute(delete(account_balance_snapshots))
+            connection.execute(delete(simplefin_sync_coverage))
             connection.execute(delete(accounts))
             connection.execute(delete(category_rules))
 
@@ -196,10 +222,18 @@ class DatabaseStore:
     def create_account(self, name: str, account_type: str, balance: float = 0, currency: str = "CAD") -> Account:
         return self.upsert_account(name=name, account_type=account_type, balance=balance, currency=currency, source="manual")
 
-    def import_simplefin_account_set(self, account_set: dict[str, Any], synced_at: str) -> dict[str, int]:
+    def import_simplefin_account_set(
+        self,
+        account_set: dict[str, Any],
+        synced_at: str,
+        coverage_start: str | None = None,
+        coverage_end: str | None = None,
+    ) -> dict[str, int]:
         created_transactions = 0
         connection_names = _simplefin_connection_names(account_set)
         institution_overrides = _simplefin_institution_overrides()
+        snapshot_date = _date_from_iso(synced_at)
+        imported_transactions: list[Transaction] = []
         with self.engine.begin() as connection:
             for item in account_set.get("accounts", []):
                 external_account_id = str(item.get("id") or "")
@@ -209,7 +243,7 @@ class DatabaseStore:
                 account_id = f"simplefin-{_slug(connection_id)}-{_slug(external_account_id)}"
                 institution_name = _simplefin_account_institution(item, account_id, connection_names, institution_overrides)
                 raw_name = str(item.get("name") or external_account_id)
-                account_type = _infer_simplefin_account_type(item)
+                account_type = _normalize_simplefin_account_type(_infer_simplefin_account_type(item), item, institution_name)
                 name = _clean_simplefin_account_name(raw_name, account_type, institution_name)
                 balance = _money(float(item.get("balance") or 0))
                 currency = str(item.get("currency") or "CAD").upper()
@@ -229,15 +263,26 @@ class DatabaseStore:
                     connection.execute(update(accounts).where(accounts.c.id == account_id).values(**values))
                 else:
                     connection.execute(insert(accounts).values(**values))
+                snapshot_id = f"{snapshot_date.isoformat()}:{account_id}"
+                connection.execute(delete(account_balance_snapshots).where(account_balance_snapshots.c.id == snapshot_id))
+                connection.execute(
+                    insert(account_balance_snapshots).values(
+                        id=snapshot_id,
+                        user_id=LOCAL_USER_ID,
+                        account_id=account_id,
+                        account_name=name,
+                        snapshot_date=snapshot_date,
+                        balance=balance,
+                        currency=currency,
+                        captured_at=synced_at,
+                    )
+                )
 
                 for raw_transaction in item.get("transactions", []):
                     external_transaction_id = str(raw_transaction.get("id") or "")
                     if not external_transaction_id:
                         continue
                     duplicate_hash = f"simplefin:{account_id}:{external_transaction_id}"
-                    exists = connection.execute(select(transactions.c.id).where(transactions.c.duplicate_hash == duplicate_hash)).first()
-                    if exists:
-                        continue
                     description = str(raw_transaction.get("description") or "SimpleFIN transaction")
                     transaction = Transaction(
                         id=duplicate_hash,
@@ -254,12 +299,59 @@ class DatabaseStore:
                         external_id=external_transaction_id,
                         duplicate_hash=duplicate_hash,
                     )
-                    categorized = categorize_transaction(transaction, self._rules())
-                    data = _table_values(transactions, categorized.model_dump())
-                    data["id"] = categorized.duplicate_hash or categorized.id
+                    imported_transactions.append(categorize_transaction(transaction, self._rules()))
+
+            for categorized in normalize_internal_flows(imported_transactions):
+                data = _table_values(transactions, categorized.model_dump())
+                data["id"] = categorized.duplicate_hash or categorized.id
+                exists = connection.execute(select(transactions.c.id).where(transactions.c.duplicate_hash == categorized.duplicate_hash)).first()
+                if exists:
+                    connection.execute(update(transactions).where(transactions.c.duplicate_hash == categorized.duplicate_hash).values(**data))
+                else:
                     connection.execute(insert(transactions).values(**data))
                     created_transactions += 1
+            if coverage_start and coverage_end:
+                start_date = date.fromisoformat(coverage_start)
+                end_date = date.fromisoformat(coverage_end)
+                coverage_id = f"simplefin:{coverage_start}:{coverage_end}"
+                connection.execute(delete(simplefin_sync_coverage).where(simplefin_sync_coverage.c.id == coverage_id))
+                connection.execute(
+                    insert(simplefin_sync_coverage).values(
+                        id=coverage_id,
+                        provider="simplefin",
+                        start_date=start_date,
+                        end_date=end_date,
+                        synced_at=synced_at,
+                    )
+                )
         return {"accounts": len(account_set.get("accounts", [])), "created_transactions": created_transactions}
+
+    def list_account_balance_snapshots(self) -> list[AccountBalanceSnapshot]:
+        with self.engine.begin() as connection:
+            rows = connection.execute(
+                select(account_balance_snapshots).order_by(account_balance_snapshots.c.snapshot_date, account_balance_snapshots.c.account_name)
+            ).mappings().all()
+        return [
+            AccountBalanceSnapshot(
+                account_id=row["account_id"],
+                account_name=row["account_name"],
+                snapshot_date=row["snapshot_date"],
+                balance=row["balance"],
+                currency=row["currency"],
+                captured_at=row["captured_at"],
+            )
+            for row in rows
+        ]
+
+    def simplefin_transaction_coverage(self) -> dict[str, str | None]:
+        with self.engine.begin() as connection:
+            rows = connection.execute(select(simplefin_sync_coverage)).mappings().all()
+        if not rows:
+            return {"start_date": None, "end_date": None}
+        return {
+            "start_date": min(row["start_date"] for row in rows).isoformat(),
+            "end_date": max(row["end_date"] for row in rows).isoformat(),
+        }
 
     def update_account(self, account_id: str, name: str, account_type: str, balance: float, currency: str = "CAD") -> Account:
         with self.engine.begin() as connection:
@@ -367,7 +459,7 @@ class DatabaseStore:
         return holding_id
 
     def portfolio_snapshot(self) -> PortfolioSnapshot:
-        return _build_portfolio_snapshot(self.list_holdings())
+        return _build_portfolio_snapshot(self.list_holdings(), self.list_accounts())
 
     def import_csv_rows(self, rows: list[CsvTransactionRow]) -> int:
         created = 0
@@ -390,6 +482,15 @@ class DatabaseStore:
         with self.engine.begin() as connection:
             rows = connection.execute(select(transactions).order_by(transactions.c.transaction_date.desc())).mappings().all()
         return [Transaction(**dict(row)) for row in rows]
+
+    def reclassify_transactions(self) -> int:
+        recategorized = [categorize_transaction(transaction, self._rules()) for transaction in self.list_transactions()]
+        normalized = normalize_internal_flows(recategorized)
+        with self.engine.begin() as connection:
+            for transaction in normalized:
+                data = _table_values(transactions, transaction.model_dump())
+                connection.execute(update(transactions).where(transactions.c.id == transaction.id).values(**data))
+        return len(normalized)
 
     def patch_transaction(self, transaction_id: str, category: str, merchant_normalized: str | None, create_rule: bool) -> Transaction:
         with self.engine.begin() as connection:

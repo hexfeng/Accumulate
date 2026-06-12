@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 304" role="img" aria-label="American Express Green Card">
+  <defs>
+    <linearGradient id="card" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#284d50"/>
+      <stop offset="0.48" stop-color="#19363b"/>
+      <stop offset="1" stop-color="#0e2428"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.12"/>
+      <stop offset="0.45" stop-color="#ffffff" stop-opacity="0.03"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.16"/>
+    </linearGradient>
+  </defs>
+  <rect width="480" height="304" rx="20" fill="url(#card)"/>
+  <rect width="480" height="304" rx="20" fill="url(#sheen)"/>
+  <rect x="46" y="78" width="58" height="44" rx="8" fill="#cfd7d5"/>
+  <path d="M58 100h34M75 82v36M49 92h52M49 110h52" stroke="#7b8786" stroke-width="2" opacity="0.72"/>
+  <text x="40" y="46" fill="#d6e3e1" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700" letter-spacing="1.5">AMERICAN EXPRESS</text>
+  <circle cx="240" cy="150" r="50" fill="none" stroke="#d6e3e1" stroke-opacity="0.26" stroke-width="3"/>
+  <path d="M218 180c16-13 22-30 18-55 18 11 29 29 26 51-12-10-26-11-44 4Z" fill="#d6e3e1" opacity="0.34"/>
+  <path d="M208 121c28-23 67-13 81 19" fill="none" stroke="#d6e3e1" stroke-width="5" stroke-linecap="round" opacity="0.32"/>
+  <text x="292" y="248" fill="#d6e3e1" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="800" letter-spacing="1.2">GREEN CARD</text>
+</svg>

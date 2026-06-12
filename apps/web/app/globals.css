@@ -2862,6 +2862,14 @@ body {
   font-weight: 600;
 }
 
+.net-worth-chart-header .net-worth-coverage-note {
+  color: var(--muted);
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 6px;
+}
+
 .chart-mode-toggle {
   background: var(--surface-strong);
   border: 0;
@@ -6522,6 +6530,125 @@ tbody tr:hover {
 .app-shell.theme-dark .placeholder-primary {
   border-color: rgba(138, 180, 248, 0.3);
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.24);
+}
+
+.chart-hover-guide {
+  background: rgba(23, 32, 38, 0.26);
+  bottom: 0;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  width: 1px;
+  z-index: 3;
+}
+
+.chart-hover-dot {
+  background: var(--green);
+  border: 2px solid var(--surface);
+  border-radius: 999px;
+  box-shadow: 0 6px 18px rgba(18, 31, 44, 0.18);
+  height: 12px;
+  pointer-events: none;
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 12px;
+  z-index: 4;
+}
+
+.chart-tooltip {
+  background: rgba(23, 32, 38, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  box-shadow: 0 16px 36px rgba(18, 31, 44, 0.2);
+  color: #fff;
+  display: grid;
+  gap: 4px;
+  min-width: 132px;
+  padding: 9px 11px;
+  pointer-events: none;
+  position: absolute;
+  transform: translate(-50%, calc(-100% - 14px));
+  z-index: 5;
+}
+
+.chart-tooltip strong,
+.chart-tooltip small {
+  color: inherit;
+  display: block;
+  font-size: 0.78rem;
+  line-height: 1.2;
+}
+
+.chart-tooltip small {
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
+.transaction-account-stack,
+.transaction-month-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.transaction-account-section {
+  display: grid;
+  gap: 12px;
+}
+
+.transaction-month-section {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.transaction-month-heading {
+  align-items: center;
+  background: var(--surface-strong);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+}
+
+.transaction-month-heading h3 {
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.transaction-month-heading span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.transaction-month-section table {
+  min-width: 760px;
+}
+
+.app-shell.theme-dark .chart-hover-guide {
+  background: rgba(234, 241, 255, 0.38);
+}
+
+.app-shell.theme-dark .chart-hover-dot {
+  border-color: rgba(20, 25, 34, 0.98);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32);
+}
+
+.app-shell.theme-dark .chart-tooltip {
+  background: rgba(10, 14, 20, 0.95);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.app-shell.theme-dark .transaction-month-section {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.app-shell.theme-dark .transaction-month-heading {
+  background: rgba(255, 255, 255, 0.055);
+  border-bottom-color: rgba(255, 255, 255, 0.12);
 }
 
 @media (max-width: 900px) {

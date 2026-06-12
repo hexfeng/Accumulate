@@ -4,7 +4,7 @@ import Link from "next/link";
 import React, { FormEvent, useMemo, useState } from "react";
 
 import { AccountVisual, accountSubtitle, formatCardBalance, sourceLabel } from "./account-visual";
-import { connectSimpleFin, createAccount, deleteAccount, disconnectSimpleFin, syncSimpleFin } from "@/lib/api";
+import { connectSimpleFin, createAccount, deleteAccount, disconnectSimpleFin, getAccounts, getTransactions, syncSimpleFin } from "@/lib/api";
 import { formatCurrency } from "@/lib/format";
 import type { Account, AccountDeleteResponse, AccountInput, AccountType, SimpleFinActionResponse, SimpleFinStatus, Transaction } from "@/lib/types";
 
@@ -17,6 +17,8 @@ type AccountsViewProps = {
   onConnectSimpleFin?: (setupToken?: string) => Promise<SimpleFinActionResponse>;
   onDisconnectSimpleFin?: () => Promise<SimpleFinActionResponse>;
   onSyncSimpleFin?: () => Promise<SimpleFinActionResponse>;
+  onRefreshAccounts?: () => Promise<Account[]>;
+  onRefreshTransactions?: () => Promise<Transaction[]>;
 };
 
 const ACCOUNT_TYPES: AccountType[] = ["checking", "savings", "cash", "credit_card", "investment", "loan", "other"];
@@ -31,9 +33,12 @@ export function AccountsView({
   onDeleteAccount = deleteAccount,
   onConnectSimpleFin = connectSimpleFin,
   onDisconnectSimpleFin = disconnectSimpleFin,
-  onSyncSimpleFin = syncSimpleFin
+  onSyncSimpleFin = syncSimpleFin,
+  onRefreshAccounts = getAccounts,
+  onRefreshTransactions = getTransactions
 }: AccountsViewProps) {
   const [accounts, setAccounts] = useState(initialAccounts);
+  const [transactions, setTransactions] = useState(initialTransactions);
   const [form, setForm] = useState<AccountInput>(DEFAULT_INPUT);
   const [deleteCandidateId, setDeleteCandidateId] = useState<string | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -104,6 +109,11 @@ export function AccountsView({
       setMessage(nextStatus.message);
       if (response.status === "connected") {
         setSetupToken("");
+      }
+      if (response.status === "synced") {
+        const [refreshedAccounts, refreshedTransactions] = await Promise.all([onRefreshAccounts(), onRefreshTransactions()]);
+        setAccounts(refreshedAccounts);
+        setTransactions(refreshedTransactions);
       }
     });
   }
@@ -310,7 +320,7 @@ export function AccountsView({
         <AccountDetailsDialog
           account={selectedAccount}
           deleteCandidateId={deleteCandidateId}
-          latestTransactions={getLatestAccountTransactions(selectedAccount, initialTransactions)}
+          latestTransactions={getLatestAccountTransactions(selectedAccount, transactions)}
           onClose={() => {
             setSelectedAccountId(null);
             setDeleteCandidateId(null);

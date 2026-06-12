@@ -24,6 +24,9 @@ export type SimpleFinStatus = {
   message: string;
   has_credentials?: boolean;
   last_synced_at?: string | null;
+  backfill_completed_at?: string | null;
+  transaction_coverage_start?: string | null;
+  transaction_coverage_end?: string | null;
   last_error?: string | null;
   retry_count?: number;
   next_retry_at?: string | null;
@@ -36,6 +39,9 @@ export type SimpleFinActionResponse = {
   message?: string;
   has_credentials?: boolean;
   last_synced_at?: string | null;
+  backfill_completed_at?: string | null;
+  transaction_coverage_start?: string | null;
+  transaction_coverage_end?: string | null;
   last_error?: string | null;
   retry_count?: number;
   next_retry_at?: string | null;
@@ -164,6 +170,9 @@ export type NetWorthHistory = {
   change_amount: number;
   change_pct: number;
   points: NetWorthHistoryPoint[];
+  coverage_start?: string | null;
+  coverage_end?: string | null;
+  is_estimated?: boolean;
 };
 
 export type DashboardSnapshot = {
@@ -188,6 +197,7 @@ export type Transaction = {
   source: string;
   merchant_normalized?: string | null;
   category?: string | null;
+  transaction_type?: string | null;
   is_excluded_from_spending: boolean;
   confidence?: number | null;
 };

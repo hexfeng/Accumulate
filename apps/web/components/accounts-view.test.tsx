@@ -101,6 +101,39 @@ describe("AccountsView", () => {
     expect(container.querySelector('img[src="/institutions/cards/wealthsimple-visa-infinite.svg"]')).toBeInTheDocument();
   });
 
+  it("maps American Express Cobalt and Green cards to their specific card art", () => {
+    const { container } = render(
+      <AccountsView
+        initialAccounts={[
+        {
+          id: "amex-cobalt",
+          user_id: "local-user",
+          name: "American Express Cobalt Card (1003)",
+          type: "credit_card",
+          balance: -36.69,
+          currency: "CAD",
+          institution_name: "American Express (Canada)",
+          source: "simplefin"
+        },
+        {
+          id: "amex-green",
+          user_id: "local-user",
+          name: "American Express Green Card (1005)",
+          type: "credit_card",
+          balance: 0,
+          currency: "CAD",
+          institution_name: "American Express (Canada)",
+          source: "simplefin"
+        }
+        ]}
+        initialSimpleFinStatus={{ ...simpleFinStatus, provider: "simplefin", mode: "real", status: "synced" }}
+      />
+    );
+
+    expect(container.querySelector('img[src="/institutions/cards/amex-cobalt.png"]')).toBeInTheDocument();
+    expect(container.querySelector('img[src="/institutions/cards/amex-green-card.svg"]')).toBeInTheDocument();
+  });
+
   it("calls injected handlers for create and delete actions", async () => {
     const onCreateAccount = vi.fn().mockResolvedValue({
       id: "emergency-fund",
@@ -150,6 +183,39 @@ describe("AccountsView", () => {
     expect(screen.getAllByRole("button", { name: "Sync now" }).length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Delete CIBC Chequing" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Transactions" })).toHaveAttribute("href", "/transactions?account=cibc-chequing");
+  });
+
+  it("refreshes account transactions after a successful SimpleFIN sync", async () => {
+    const onSyncSimpleFin = vi.fn().mockResolvedValue({
+      provider: "simplefin",
+      status: "synced",
+      mode: "real",
+      message: "SimpleFIN sync complete.",
+      has_credentials: true,
+      retry_count: 0
+    });
+    const onRefreshAccounts = vi.fn().mockResolvedValue(accounts);
+    const onRefreshTransactions = vi.fn().mockResolvedValue(transactions);
+
+    render(
+      <AccountsView
+        initialAccounts={accounts}
+        initialSimpleFinStatus={simpleFinStatus}
+        initialTransactions={[]}
+        onSyncSimpleFin={onSyncSimpleFin}
+        onRefreshAccounts={onRefreshAccounts}
+        onRefreshTransactions={onRefreshTransactions}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open CIBC Chequing account" }));
+    expect(screen.getByText("No transactions found for this account yet.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Sync now" }).at(-1)!);
+
+    await waitFor(() => expect(onRefreshTransactions).toHaveBeenCalled());
+    expect(onRefreshAccounts).toHaveBeenCalled();
+    expect(screen.getByText("Transfer to EQ Savings")).toBeInTheDocument();
   });
 
   it("closes the account detail dialog when clicking outside the card", () => {

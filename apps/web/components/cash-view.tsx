@@ -232,7 +232,7 @@ function summarizeTransactionsForMonth(transactions: Transaction[], month: strin
 }
 
 function isSpendingTransaction(transaction: Transaction) {
-  return transaction.amount < 0 && !transaction.is_excluded_from_spending && transaction.category !== "Transfer" && transaction.category !== "Income";
+  return transaction.amount < 0 && !transaction.is_excluded_from_spending && !["Income", "Payment", "Transfer"].includes(transaction.category ?? "");
 }
 
 function getPreviousMonth(month: string) {

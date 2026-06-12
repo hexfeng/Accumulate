@@ -21,7 +21,7 @@ const INSTITUTIONS: InstitutionAsset[] = [
   { displayName: "Wealthsimple", logo: "/institutions/logos/wealthsimple.jpg", card: "/institutions/cards/wealthsimple-visa-infinite.svg", tone: "visual-wealthsimple", words: ["wealthsimple"] },
   { displayName: "PC", logo: "/institutions/logos/pc-financial.jpg", card: "/institutions/cards/pc-world-elite-mastercard.png", tone: "visual-pc", words: ["pc financial", "president", "pc money", "pc mastercard"] },
   { displayName: "Rogers", logo: "/institutions/logos/rogers-bank.png", card: "/institutions/cards/rogers-red-mastercard.svg", tone: "visual-rogers", words: ["rogers"] },
-  { displayName: "Amex", logo: "/institutions/logos/amex.jpg", card: "/institutions/cards/amex-cobalt.png", tone: "visual-amex", words: ["amex", "american express", "cobalt"] },
+  { displayName: "Amex", logo: "/institutions/logos/amex.jpg", card: "/institutions/cards/amex-cobalt.png", tone: "visual-amex", words: ["amex", "american express"] },
   { displayName: "National", logo: "/institutions/logos/national-bank.jpg", tone: "visual-national", words: ["national bank", "banque nationale", "nbc"] },
   { displayName: "Tangerine", logo: "/institutions/logos/tangerine.jpg", tone: "visual-tangerine", words: ["tangerine"] },
   { displayName: "Simplii", logo: "/institutions/logos/simplii.jpg", tone: "visual-simplii", words: ["simplii"] },
@@ -34,10 +34,11 @@ export function AccountVisual({ account }: { account: Account }) {
   const institution = findInstitution(`${institutionName} ${account.name}`);
 
   if (account.type === "credit_card") {
-    if (institution?.card) {
+    const cardAsset = getCardAsset(account, institution);
+    if (cardAsset) {
       return (
         <span className="account-visual card-visual card-visual-image" aria-hidden="true">
-          <img alt="" src={institution.card} />
+          <img alt="" src={cardAsset} />
         </span>
       );
     }
@@ -102,6 +103,19 @@ export function formatCardBalance(balance: number) {
 function findInstitution(name: string) {
   const normalized = normalizeName(name);
   return INSTITUTIONS.find((institution) => institution.words.some((word) => matchesWord(normalized, word)));
+}
+
+function getCardAsset(account: Account, institution?: InstitutionAsset) {
+  const normalized = normalizeName(`${account.institution_name ?? ""} ${account.name}`);
+  if (normalized.includes("american express") || normalized.includes("amex")) {
+    if (normalized.includes("green")) {
+      return "/institutions/cards/amex-green-card.svg";
+    }
+    if (normalized.includes("cobalt")) {
+      return "/institutions/cards/amex-cobalt.png";
+    }
+  }
+  return institution?.card;
 }
 
 function matchesWord(normalizedName: string, word: string) {

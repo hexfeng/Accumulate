@@ -134,7 +134,7 @@ describe("SpendingView", () => {
   });
 
   it("switches budget chart between monthly comparison and weekly spend", () => {
-    renderSpendingView();
+    const { container } = renderSpendingView();
 
     fireEvent.click(screen.getByRole("button", { name: "Weekly spend" }));
 
@@ -151,6 +151,11 @@ describe("SpendingView", () => {
     expect(document.querySelectorAll(".budget-overview-bars span")).toHaveLength(0);
     expect(screen.getByText("May 9")).toBeInTheDocument();
     expect(screen.getByText("May 14")).toBeInTheDocument();
+    const chart = container.querySelector(".weekly-spend-line-chart") as HTMLElement;
+    chart.getBoundingClientRect = () => ({ left: 0, top: 0, width: 300, height: 132, bottom: 132, right: 300, x: 0, y: 0, toJSON: () => ({}) });
+    fireEvent.mouseMove(chart, { clientX: 299, clientY: 40 });
+    expect(screen.getByText("May 14, 2026")).toBeInTheDocument();
+    expect(screen.getAllByText("$24.75").length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole("button", { name: "Monthly" }));
 
@@ -183,5 +188,25 @@ describe("SpendingView", () => {
     expect(within(accountDialog).getByText("Loblaws")).toBeInTheDocument();
     expect(within(accountDialog).getByText("Uber Eats")).toBeInTheDocument();
     expect(within(accountDialog).getByRole("link", { name: "Open CIBC Visa transactions" })).toHaveAttribute("href", "/transactions?month=2026-05&account=cibc-visa");
+  });
+
+  it("renders empty real-data states instead of leaving spending panels blank", () => {
+    const emptySummary: MonthlySummary = {
+      month: "2026-06",
+      total_income: 0,
+      total_spending: 0,
+      net_cashflow: 0,
+      monthly_budget: 0,
+      budget_used_pct: 0,
+      categories: [],
+      merchants: []
+    };
+
+    render(<SpendingView accounts={accounts} recurringItems={[]} summary={emptySummary} transactions={[]} />);
+
+    expect(screen.getByText("No spending transactions found for June 2026.")).toBeInTheDocument();
+    expect(screen.getByText("No merchant spending found for June 2026.")).toBeInTheDocument();
+    expect(screen.getByText("No category spending found for June 2026.")).toBeInTheDocument();
+    expect(screen.getByText("No spending")).toBeInTheDocument();
   });
 });

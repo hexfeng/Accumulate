@@ -9,7 +9,8 @@ from uuid import uuid4
 
 from app.domain.categorization import DEFAULT_RULES, categorize_transaction
 from app.domain.normalization import normalize_csv_transaction
-from app.domain.schemas import Account, AssetAllocationItem, BudgetSettings, CategoryRule, CsvTransactionRow, Holding, PortfolioAccountSummary, PortfolioSnapshot, Transaction
+from app.domain.schemas import Account, AccountBalanceSnapshot, AssetAllocationItem, BudgetSettings, CategoryRule, CsvTransactionRow, Holding, PortfolioAccountSummary, PortfolioSnapshot, Transaction
+from app.domain.transaction_classification import normalize_internal_flows
 
 
 LOCAL_USER_ID = "local-user"
@@ -28,6 +29,8 @@ class LocalStore:
     accounts: dict[str, Account] = field(default_factory=dict)
     holdings: dict[str, Holding] = field(default_factory=dict)
     transactions: dict[str, Transaction] = field(default_factory=dict)
+    balance_snapshots: dict[str, AccountBalanceSnapshot] = field(default_factory=dict)
+    simplefin_coverages: list[dict[str, str]] = field(default_factory=list)
     user_rules: list[CategoryRule] = field(default_factory=list)
     budget: BudgetSettings = field(default_factory=lambda: BudgetSettings(monthly_budget=3000, category_budgets={"Groceries": 650, "Dining": 500, "Subscriptions": 150}))
 
@@ -35,6 +38,8 @@ class LocalStore:
         self.accounts.clear()
         self.holdings.clear()
         self.transactions.clear()
+        self.balance_snapshots.clear()
+        self.simplefin_coverages.clear()
         self.user_rules.clear()
 
     def list_rules(self) -> list[CategoryRule]:
@@ -58,10 +63,18 @@ class LocalStore:
     def create_account(self, name: str, account_type: str, balance: float = 0, currency: str = "CAD") -> Account:
         return self.upsert_account(name=name, account_type=account_type, balance=balance, currency=currency, source="manual")
 
-    def import_simplefin_account_set(self, account_set: dict[str, Any], synced_at: str) -> dict[str, int]:
+    def import_simplefin_account_set(
+        self,
+        account_set: dict[str, Any],
+        synced_at: str,
+        coverage_start: str | None = None,
+        coverage_end: str | None = None,
+    ) -> dict[str, int]:
         created_transactions = 0
         connection_names = _simplefin_connection_names(account_set)
         institution_overrides = _simplefin_institution_overrides()
+        snapshot_date = _date_from_iso(synced_at)
+        imported_transactions: list[Transaction] = []
         for item in account_set.get("accounts", []):
             external_account_id = str(item.get("id") or "")
             if not external_account_id:
@@ -70,7 +83,7 @@ class LocalStore:
             account_id = f"simplefin-{_slug(connection_id)}-{_slug(external_account_id)}"
             institution_name = _simplefin_account_institution(item, account_id, connection_names, institution_overrides)
             raw_name = str(item.get("name") or external_account_id)
-            account_type = _infer_simplefin_account_type(item)
+            account_type = _normalize_simplefin_account_type(_infer_simplefin_account_type(item), item, institution_name)
             name = _clean_simplefin_account_name(raw_name, account_type, institution_name)
             balance = _money(float(item.get("balance") or 0))
             currency = str(item.get("currency") or "CAD").upper()
@@ -86,14 +99,20 @@ class LocalStore:
                 last_synced_at=synced_at,
             )
             self.accounts[account_id] = account
+            self.balance_snapshots[f"{snapshot_date.isoformat()}:{account_id}"] = AccountBalanceSnapshot(
+                account_id=account_id,
+                account_name=name,
+                snapshot_date=snapshot_date,
+                balance=balance,
+                currency=currency,
+                captured_at=synced_at,
+            )
 
             for raw_transaction in item.get("transactions", []):
                 external_transaction_id = str(raw_transaction.get("id") or "")
                 if not external_transaction_id:
                     continue
                 duplicate_hash = f"simplefin:{account_id}:{external_transaction_id}"
-                if duplicate_hash in self.transactions:
-                    continue
                 description = str(raw_transaction.get("description") or "SimpleFIN transaction")
                 transaction = Transaction(
                     id=duplicate_hash,
@@ -110,9 +129,30 @@ class LocalStore:
                     external_id=external_transaction_id,
                     duplicate_hash=duplicate_hash,
                 )
-                self.transactions[duplicate_hash] = categorize_transaction(transaction, self._rules())
+                imported_transactions.append(categorize_transaction(transaction, self._rules()))
+
+        for transaction in normalize_internal_flows(imported_transactions):
+            transaction_id = transaction.duplicate_hash or transaction.id
+            if transaction_id not in self.transactions:
                 created_transactions += 1
+            self.transactions[transaction_id] = transaction
+        if coverage_start and coverage_end:
+            self.record_simplefin_transaction_coverage(coverage_start, coverage_end, synced_at)
         return {"accounts": len(account_set.get("accounts", [])), "created_transactions": created_transactions}
+
+    def list_account_balance_snapshots(self) -> list[AccountBalanceSnapshot]:
+        return sorted(self.balance_snapshots.values(), key=lambda snapshot: (snapshot.snapshot_date, snapshot.account_name))
+
+    def record_simplefin_transaction_coverage(self, start_date: str, end_date: str, synced_at: str) -> None:
+        self.simplefin_coverages.append({"start_date": start_date, "end_date": end_date, "synced_at": synced_at})
+
+    def simplefin_transaction_coverage(self) -> dict[str, str | None]:
+        if not self.simplefin_coverages:
+            return {"start_date": None, "end_date": None}
+        return {
+            "start_date": min(coverage["start_date"] for coverage in self.simplefin_coverages),
+            "end_date": max(coverage["end_date"] for coverage in self.simplefin_coverages),
+        }
 
     def update_account(self, account_id: str, name: str, account_type: str, balance: float, currency: str = "CAD") -> Account:
         account = self.accounts.get(account_id)
@@ -205,7 +245,7 @@ class LocalStore:
         return holding_id
 
     def portfolio_snapshot(self) -> PortfolioSnapshot:
-        return _build_portfolio_snapshot(self.list_holdings())
+        return _build_portfolio_snapshot(self.list_holdings(), self.list_accounts())
 
     def import_csv_rows(self, rows: list[CsvTransactionRow]) -> int:
         created = 0
@@ -221,6 +261,13 @@ class LocalStore:
 
     def list_transactions(self) -> list[Transaction]:
         return sorted(self.transactions.values(), key=lambda txn: txn.transaction_date, reverse=True)
+
+    def reclassify_transactions(self) -> int:
+        recategorized = [categorize_transaction(transaction, self._rules()) for transaction in self.list_transactions()]
+        normalized = normalize_internal_flows(recategorized)
+        for transaction in normalized:
+            self.transactions[transaction.duplicate_hash or transaction.id] = transaction
+        return len(normalized)
 
     def patch_transaction(self, transaction_id: str, category: str, merchant_normalized: str | None, create_rule: bool) -> Transaction:
         transaction = self.transactions[transaction_id]
@@ -274,6 +321,13 @@ def _money(value: float) -> float:
     return round(value, 2)
 
 
+def _date_from_iso(value: str) -> date:
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).date()
+    except ValueError:
+        return datetime.now(timezone.utc).date()
+
+
 def _infer_simplefin_account_type(account: dict[str, Any] | str) -> str:
     raw_name = account if isinstance(account, str) else str(account.get("name") or "")
     explicit_type = "" if isinstance(account, str) else _simplefin_account_text(account, "type", "account_type", "account-type", "class", "category", "subtype")
@@ -293,6 +347,15 @@ def _infer_simplefin_account_type(account: dict[str, Any] | str) -> str:
     if not isinstance(account, str) and raw_name.lower().startswith("other ") and _simplefin_has_available_cash_balance(account):
         return "cash"
     return "other"
+
+
+def _normalize_simplefin_account_type(account_type: str, account: dict[str, Any], institution_name: str | None) -> str:
+    normalized_name = str(account.get("name") or "").lower().replace("-", "_")
+    institution = (institution_name or "").lower()
+    if account_type == "other" and "wealthsimple" in institution:
+        if any(token in normalized_name for token in ("self_directed", "tfsa", "rrsp", "fhsa", "non_registered", "crypto", "investment")):
+            return "investment"
+    return account_type
 
 
 def _clean_simplefin_account_name(name: str, account_type: str, institution_name: str | None = None) -> str:
@@ -415,7 +478,34 @@ def _simplefin_transaction_date(transaction: dict[str, Any]) -> date:
         return datetime.now(timezone.utc).date()
 
 
-def _build_portfolio_snapshot(holdings: list[Holding]) -> PortfolioSnapshot:
+def _build_portfolio_snapshot(holdings: list[Holding], accounts: list[Account] | None = None) -> PortfolioSnapshot:
+    if not holdings and accounts:
+        investment_accounts = [account for account in accounts if account.type == "investment" and account.balance > 0]
+        total_value = _money(sum(account.balance for account in investment_accounts))
+        return PortfolioSnapshot(
+            total_value=total_value,
+            total_cost=total_value,
+            unrealized_gain=0,
+            unrealized_gain_pct=0,
+            allocation=[
+                AssetAllocationItem(
+                    label=account.name,
+                    value=_money(account.balance),
+                    percent=_money((account.balance / total_value) * 100) if total_value else 0,
+                )
+                for account in investment_accounts
+            ],
+            accounts=[
+                PortfolioAccountSummary(
+                    account_id=account.id,
+                    account_name=account.name,
+                    value=_money(account.balance),
+                    holdings_count=0,
+                )
+                for account in investment_accounts
+            ],
+        )
+
     holding_values = [(holding, holding.quantity * holding.market_price, holding.quantity * holding.average_cost) for holding in holdings]
     total_value = _money(sum(value for _, value, _ in holding_values))
     total_cost = _money(sum(cost for _, _, cost in holding_values))
