@@ -1763,6 +1763,31 @@ th {
   gap: 10px;
 }
 
+.statement-update-panel {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.statement-update-panel label {
+  color: var(--muted);
+  display: grid;
+  font-size: 0.82rem;
+  font-weight: 800;
+  gap: 6px;
+}
+
+.statement-update-panel input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+  padding: 10px 12px;
+}
+
 .account-detail-section-heading {
   align-items: center;
   display: flex;
@@ -6622,6 +6647,30 @@ tbody tr:hover {
   font-size: 0.78rem;
   font-weight: 800;
   text-transform: uppercase;
+}
+
+.transaction-month-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.transaction-month-actions button {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 800;
+  padding: 7px 11px;
+}
+
+.transaction-dialog,
+.transaction-history-dialog {
+  max-width: min(920px, calc(100vw - 32px));
+  width: 100%;
 }
 
 .transaction-month-section table {

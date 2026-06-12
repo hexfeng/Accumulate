@@ -3,13 +3,23 @@ import React from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { AccountsView } from "./accounts-view";
-import type { Account, SimpleFinStatus, Transaction } from "@/lib/types";
+import type { Account, SimpleFinStatus, StatementImportResponse, Transaction } from "@/lib/types";
 
 const accounts: Account[] = [
   { id: "cash-wallet", user_id: "local-user", name: "Cash Wallet", type: "cash", balance: 150, currency: "CAD", source: "manual" },
   { id: "cibc-chequing", user_id: "local-user", name: "CIBC Chequing", type: "checking", balance: 4200, currency: "CAD", source: "mock_simplefin" },
   { id: "csv-card", user_id: "local-user", name: "CSV Card", type: "credit_card", balance: -300, currency: "CAD", source: "csv" }
 ];
+
+const rogersStatementAccount: Account = {
+  id: "rogers-red-world-elite-8746",
+  user_id: "local-user",
+  name: "Rogers Red World Elite 8746",
+  type: "credit_card",
+  balance: -311.14,
+  currency: "CAD",
+  source: "statement"
+};
 
 const simpleFinStatus: SimpleFinStatus = {
   provider: "mock_simplefin",
@@ -231,15 +241,179 @@ describe("AccountsView", () => {
     expect(screen.queryByRole("dialog", { name: "CIBC Chequing" })).not.toBeInTheDocument();
   });
 
-  it("opens statement import mode from the add dialog", () => {
-    render(<AccountsView initialAccounts={accounts} initialSimpleFinStatus={simpleFinStatus} />);
+  it("imports a selected statement file from the add dialog", async () => {
+    const originalConsoleError = console.error;
+    const consoleError = vi.spyOn(console, "error").mockImplementation((message, ...args) => {
+      if (typeof message === "string" && message.includes("A component is changing a controlled input to be uncontrolled")) {
+        return;
+      }
+      originalConsoleError(message, ...args);
+    });
+    const importResponse: StatementImportResponse = {
+      account: {
+        id: "rogers-red-world-elite-8746",
+        user_id: "local-user",
+        name: "Rogers Red World Elite 8746",
+        type: "credit_card",
+        balance: -311.14,
+        currency: "CAD",
+        source: "statement"
+      },
+      created_transactions: 3,
+      preview_rows: [
+        {
+          account_name: "Rogers Red World Elite 8746",
+          account_type: "credit_card",
+          transaction_date: "2026-04-21",
+          description: "FARAH FOODS WATERLOO ON",
+          amount: -12.41,
+          currency: "CAD"
+        }
+      ],
+      message: "Imported 3 transactions from Rogers Red World Elite 8746."
+    };
+    const onImportStatement = vi.fn().mockResolvedValue(importResponse);
+    const onRefreshTransactions = vi.fn().mockResolvedValue([]);
+
+    render(
+      <AccountsView
+        initialAccounts={accounts}
+        initialSimpleFinStatus={simpleFinStatus}
+        onImportStatement={onImportStatement}
+        onRefreshTransactions={onRefreshTransactions}
+      />
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Add account / Import" }));
     fireEvent.click(screen.getByRole("button", { name: "Import statement" }));
+    const file = new File(["statement"], "Rogers Red World Elite_8746_05_2026.pdf", { type: "application/pdf" });
 
-    expect(screen.getByLabelText("Statement file")).toBeInTheDocument();
-    expect(screen.getByText("PDF OCR import")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Review import" })).toBeDisabled();
+    const input = screen.getByLabelText("Statement files");
+    Object.defineProperty(input, "files", { value: [file], configurable: true });
+    fireEvent.change(input);
+    fireEvent.click(screen.getByRole("button", { name: "Import selected statement files" }));
+
+    await waitFor(() => expect(onImportStatement).toHaveBeenCalledWith(file));
+    expect(screen.getByRole("button", { name: "Open Rogers Red World Elite 8746 account" })).toBeInTheDocument();
+    expect(screen.getAllByText("Imported 3 transactions from Rogers Red World Elite 8746.").length).toBeGreaterThan(0);
+    consoleError.mockRestore();
+  });
+
+  it("imports multiple historical statement files from the add dialog", async () => {
+    const importResponse = (month: string): StatementImportResponse => ({
+      account: {
+        id: "rogers-red-world-elite-8746",
+        user_id: "local-user",
+        name: "Rogers Red World Elite 8746",
+        type: "credit_card",
+        balance: -311.14,
+        currency: "CAD",
+        source: "statement"
+      },
+      created_transactions: 2,
+      preview_rows: [
+        {
+          account_name: "Rogers Red World Elite 8746",
+          account_type: "credit_card",
+          transaction_date: `2026-${month}-20`,
+          description: `${month} statement row`,
+          amount: -42,
+          currency: "CAD"
+        }
+      ],
+      message: `Imported 2 transactions from Rogers Red World Elite 8746.`
+    });
+    const onImportStatement = vi
+      .fn()
+      .mockResolvedValueOnce(importResponse("04"))
+      .mockResolvedValueOnce(importResponse("05"));
+
+    render(
+      <AccountsView
+        initialAccounts={accounts}
+        initialSimpleFinStatus={simpleFinStatus}
+        onImportStatement={onImportStatement}
+        onRefreshTransactions={vi.fn().mockResolvedValue([])}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Add account / Import" }));
+    fireEvent.click(screen.getByRole("button", { name: "Import statement" }));
+    const april = new File(["statement"], "Rogers Red World Elite_8746_04_2026.pdf", { type: "application/pdf" });
+    const may = new File(["statement"], "Rogers Red World Elite_8746_05_2026.pdf", { type: "application/pdf" });
+
+    const input = screen.getByLabelText("Statement files");
+    Object.defineProperty(input, "files", { value: [april, may], configurable: true });
+    fireEvent.change(input);
+    fireEvent.click(screen.getByRole("button", { name: "Import selected statement files" }));
+
+    await waitFor(() => expect(onImportStatement).toHaveBeenCalledTimes(2));
+    expect(onImportStatement).toHaveBeenNthCalledWith(1, april);
+    expect(onImportStatement).toHaveBeenNthCalledWith(2, may);
+    expect(screen.getByText("Imported 2 statement files and 4 new transactions.")).toBeInTheDocument();
+  });
+
+  it("updates transactions from an existing statement account detail dialog", async () => {
+    const importResponse: StatementImportResponse = {
+      account: rogersStatementAccount,
+      created_transactions: 1,
+      preview_rows: [
+        {
+          account_name: "Rogers Red World Elite 8746",
+          account_type: "credit_card",
+          transaction_date: "2026-06-20",
+          description: "New cycle purchase",
+          amount: -25,
+          currency: "CAD"
+        }
+      ],
+      message: "Imported 1 transactions from Rogers Red World Elite 8746."
+    };
+    const updatedTransactions: Transaction[] = [
+      {
+        id: "rogers-june",
+        user_id: "local-user",
+        account_id: "rogers-red-world-elite-8746",
+        account_name: "Rogers Red World Elite 8746",
+        account_type: "credit_card",
+        transaction_date: "2026-06-20",
+        amount: -25,
+        currency: "CAD",
+        merchant_raw: "New cycle purchase",
+        description_raw: "New cycle purchase",
+        source: "statement",
+        merchant_normalized: "New Cycle Purchase",
+        category: "Uncategorized",
+        is_excluded_from_spending: false
+      }
+    ];
+    const onImportStatement = vi.fn().mockResolvedValue(importResponse);
+    const onRefreshTransactions = vi.fn().mockResolvedValue(updatedTransactions);
+
+    render(
+      <AccountsView
+        initialAccounts={[...accounts, rogersStatementAccount]}
+        initialSimpleFinStatus={simpleFinStatus}
+        onImportStatement={onImportStatement}
+        onRefreshTransactions={onRefreshTransactions}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Rogers Red World Elite 8746 account" }));
+    const dialog = screen.getByRole("dialog", { name: "Rogers Red World Elite 8746" });
+    expect(screen.getByRole("heading", { name: "Update transactions" })).toBeInTheDocument();
+
+    const file = new File(["statement"], "Rogers Red World Elite_8746_06_2026.pdf", { type: "application/pdf" });
+    const input = screen.getByLabelText("Statement update files");
+    Object.defineProperty(input, "files", { value: [file], configurable: true });
+    fireEvent.change(input);
+    fireEvent.click(screen.getByRole("button", { name: "Update transactions" }));
+
+    await waitFor(() => expect(onImportStatement).toHaveBeenCalledWith(file));
+    expect(onRefreshTransactions).toHaveBeenCalled();
+    expect(screen.getByText("Imported 1 transactions from Rogers Red World Elite 8746.")).toBeInTheDocument();
+    expect(dialog).toBeInTheDocument();
+    expect(screen.getByText("New Cycle Purchase")).toBeInTheDocument();
   });
 
   it("accepts a SimpleFIN setup token and surfaces retry state", async () => {

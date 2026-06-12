@@ -9,7 +9,7 @@ from app.domain.categorization import DEFAULT_RULES, categorize_transaction
 from app.domain.normalization import normalize_csv_transaction
 from app.domain.schemas import Account, AccountBalanceSnapshot, BudgetSettings, CategoryRule, CsvTransactionRow, Holding, PortfolioSnapshot, Transaction
 from app.domain.transaction_classification import normalize_internal_flows
-from app.store import LOCAL_USER_ID, AccountConflictError, AccountNotFoundError, _build_portfolio_snapshot, _clean_simplefin_account_name, _date_from_iso, _infer_simplefin_account_type, _money, _normalize_simplefin_account_type, _simplefin_account_institution, _simplefin_connection_names, _simplefin_institution_overrides, _simplefin_transaction_date, _slug
+from app.store import LOCAL_USER_ID, AccountConflictError, AccountNotFoundError, _build_portfolio_snapshot, _clean_simplefin_account_name, _date_from_iso, _infer_simplefin_account_type, _latest_statement_row_date, _money, _normalize_simplefin_account_type, _simplefin_account_institution, _simplefin_connection_names, _simplefin_institution_overrides, _simplefin_transaction_date, _slug, _statement_transaction_from_row
 
 
 metadata = MetaData()
@@ -477,6 +477,54 @@ class DatabaseStore:
                 connection.execute(insert(transactions).values(**data))
                 created += 1
         return created
+
+    def import_statement_rows(
+        self,
+        rows: list[CsvTransactionRow],
+        account_name: str,
+        account_type: str,
+        balance: float,
+        currency: str = "CAD",
+    ) -> tuple[Account, int]:
+        account_id = _slug(account_name)
+        created = 0
+        imported = [_statement_transaction_from_row(row) for row in rows]
+        categorized = normalize_internal_flows([categorize_transaction(transaction, self._rules()) for transaction in imported])
+        with self.engine.begin() as connection:
+            existing_account = connection.execute(select(accounts).where(accounts.c.id == account_id)).mappings().first()
+            existing_latest_date = connection.execute(
+                select(transactions.c.transaction_date)
+                .where(transactions.c.account_id == account_id)
+                .order_by(transactions.c.transaction_date.desc())
+                .limit(1)
+            ).scalar_one_or_none()
+            incoming_latest_date = _latest_statement_row_date(rows)
+            should_update_balance = existing_latest_date is None or incoming_latest_date is None or incoming_latest_date >= existing_latest_date
+            account_values = {
+                "id": account_id,
+                "user_id": LOCAL_USER_ID,
+                "name": account_name,
+                "type": account_type,
+                "balance": _money(balance) if should_update_balance or existing_account is None else existing_account["balance"],
+                "currency": currency,
+                "source": "statement",
+            }
+            if existing_account:
+                connection.execute(update(accounts).where(accounts.c.id == account_id).values(**account_values))
+            else:
+                connection.execute(insert(accounts).values(**account_values))
+            account_row = connection.execute(select(accounts).where(accounts.c.id == account_id)).mappings().one()
+
+            for transaction in categorized:
+                data = _table_values(transactions, transaction.model_dump())
+                transaction_id = transaction.duplicate_hash or transaction.id
+                data["id"] = transaction_id
+                exists = connection.execute(select(transactions.c.id).where(transactions.c.id == transaction_id)).first()
+                if exists:
+                    continue
+                connection.execute(insert(transactions).values(**data))
+                created += 1
+        return Account(**dict(account_row)), created
 
     def list_transactions(self) -> list[Transaction]:
         with self.engine.begin() as connection:

@@ -259,6 +259,42 @@ class LocalStore:
             created += 1
         return created
 
+    def import_statement_rows(
+        self,
+        rows: list[CsvTransactionRow],
+        account_name: str,
+        account_type: str,
+        balance: float,
+        currency: str = "CAD",
+    ) -> tuple[Account, int]:
+        account_id = _slug(account_name)
+        existing_account = self.accounts.get(account_id)
+        incoming_latest_date = _latest_statement_row_date(rows)
+        existing_latest_date = max(
+            (transaction.transaction_date for transaction in self.transactions.values() if transaction.account_id == account_id),
+            default=None,
+        )
+        should_update_balance = existing_latest_date is None or incoming_latest_date is None or incoming_latest_date >= existing_latest_date
+        account = Account(
+            id=account_id,
+            user_id=LOCAL_USER_ID,
+            name=account_name,
+            type=account_type,
+            balance=_money(balance) if should_update_balance or existing_account is None else existing_account.balance,
+            currency=currency,
+            source="statement",
+        )
+        self.accounts[account_id] = account
+        imported = [_statement_transaction_from_row(row) for row in rows]
+        created = 0
+        for transaction in normalize_internal_flows([categorize_transaction(transaction, self._rules()) for transaction in imported]):
+            transaction_id = transaction.duplicate_hash or transaction.id
+            if transaction_id in self.transactions:
+                continue
+            self.transactions[transaction_id] = transaction
+            created += 1
+        return account, created
+
     def list_transactions(self) -> list[Transaction]:
         return sorted(self.transactions.values(), key=lambda txn: txn.transaction_date, reverse=True)
 
@@ -476,6 +512,28 @@ def _simplefin_transaction_date(transaction: dict[str, Any]) -> date:
         return datetime.fromtimestamp(int(timestamp), timezone.utc).date()
     except (TypeError, ValueError, OSError):
         return datetime.now(timezone.utc).date()
+
+
+def _statement_transaction_from_row(row: CsvTransactionRow) -> Transaction:
+    transaction = normalize_csv_transaction(row, LOCAL_USER_ID)
+    duplicate_hash = transaction.duplicate_hash.replace("csv:", "statement:", 1)
+    return transaction.model_copy(
+        update={
+            "id": duplicate_hash,
+            "source": "statement",
+            "duplicate_hash": duplicate_hash,
+        }
+    )
+
+
+def _latest_statement_row_date(rows: list[CsvTransactionRow]) -> date | None:
+    dates: list[date] = []
+    for row in rows:
+        try:
+            dates.append(date.fromisoformat(row.transaction_date))
+        except ValueError:
+            continue
+    return max(dates, default=None)
 
 
 def _build_portfolio_snapshot(holdings: list[Holding], accounts: list[Account] | None = None) -> PortfolioSnapshot:

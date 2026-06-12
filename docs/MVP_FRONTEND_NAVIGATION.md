@@ -89,8 +89,8 @@ Future nested routes may include:
 | Spending | Implemented | Where did my money go? | Income/spending summary, budget thresholds, category and merchant drill-downs, recurring costs, spending insights. |
 | Investments | Implemented MVP | How is my wealth performing? | Manual holdings CRUD, portfolio value, cost basis, unrealized gain, allocation, and account grouping. |
 | Recap | Implemented | What changed over a period? | Period income, spending, net cashflow, savings rate, recurring costs, notable categories, top merchants, sparse-data states, and action links. |
-| Transactions | Implemented MVP | Is the source data correct? | Search, filters, review queue, categorization, exclusion, transfer marking, rule creation. |
-| Accounts | Implemented | Are my accounts and data sources healthy? | Real SimpleFIN Bridge status/connect/sync/disconnect, setup-token entry, sync freshness, retry/error state, cash account grouping, credit-card obligation grouping, institution visuals, source labels, clean one-line account rows, modal-based manual/statement entry, click-through account detail/update modals, and click-outside modal dismissal. |
+| Transactions | Implemented MVP | Is the source data correct? | Search, filters, compact latest-month account previews, all-transactions dialogs, monthly history dialogs, categorization, exclusion, transfer marking, and rule creation. |
+| Accounts | Implemented | Are my accounts and data sources healthy? | Real SimpleFIN Bridge status/connect/sync/disconnect, setup-token entry, sync freshness, retry/error state, cash account grouping, credit-card obligation grouping, institution visuals, source labels, clean one-line account rows, modal-based manual entry, multi-file historical statement import, click-through account detail/update modals, and click-outside modal dismissal. |
 | Settings | Implemented MVP | How should FinSight interpret my data? | Monthly budget, category budgets, forecast assumptions, base currency, timezone, AI privacy mode, and local-first preferences. |
 
 ## 5. Cross-page drill-down rules
@@ -274,6 +274,14 @@ Frontend completed:
 3. Reworked account detail modals to show the account visual, balance, type/currency/source/last-sync facts, latest transactions, sync/delete/transactions actions, and click-outside dismissal.
 4. Kept manual add and statement import in a modal flow, with click-outside dismissal matching account detail modals.
 5. Added a local institution asset library for major Canadian banks, Wealthsimple, EQ Bank, PC Financial, Rogers Bank, and Amex card imagery.
+
+2026-06-12 Statement import and Transactions UX:
+
+1. Updated statement import to accept multiple historical monthly files in one modal flow and append older months to the same statement account.
+2. Added `Update transactions` inside existing statement account detail dialogs so users can upload each new monthly statement without deleting or recreating the account.
+3. Kept current/newer statement imports updating the statement account balance while older historical imports fill missing transactions without rolling the balance back.
+4. Confirmed imported credit-card statement expenses feed monthly spending analytics when they are not classified as payments or transfers.
+5. Changed Transactions to show each account's latest month with only the five newest rows by default, plus dialogs for the full month and month-by-month history.
 
 Verification completed for commit `74da22d`:
 

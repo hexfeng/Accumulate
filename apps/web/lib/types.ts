@@ -59,6 +59,22 @@ export type Account = {
   last_synced_at?: string | null;
 };
 
+export type StatementImportRow = {
+  account_name: string;
+  account_type: string;
+  transaction_date: string;
+  description: string;
+  amount: string | number;
+  currency: string;
+};
+
+export type StatementImportResponse = {
+  account: Account;
+  created_transactions: number;
+  preview_rows: StatementImportRow[];
+  message: string;
+};
+
 export type HoldingInput = {
   account_id: string;
   symbol: string;

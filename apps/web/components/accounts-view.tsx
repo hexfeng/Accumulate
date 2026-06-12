@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import React, { FormEvent, useMemo, useState } from "react";
+import React, { FormEvent, useMemo, useRef, useState } from "react";
 
 import { AccountVisual, accountSubtitle, formatCardBalance, sourceLabel } from "./account-visual";
-import { connectSimpleFin, createAccount, deleteAccount, disconnectSimpleFin, getAccounts, getTransactions, syncSimpleFin } from "@/lib/api";
+import { connectSimpleFin, createAccount, deleteAccount, disconnectSimpleFin, getAccounts, getTransactions, importStatement, syncSimpleFin } from "@/lib/api";
 import { formatCurrency } from "@/lib/format";
-import type { Account, AccountDeleteResponse, AccountInput, AccountType, SimpleFinActionResponse, SimpleFinStatus, Transaction } from "@/lib/types";
+import type { Account, AccountDeleteResponse, AccountInput, AccountType, SimpleFinActionResponse, SimpleFinStatus, StatementImportResponse, Transaction } from "@/lib/types";
 
 type AccountsViewProps = {
   initialAccounts: Account[];
@@ -16,6 +16,7 @@ type AccountsViewProps = {
   onDeleteAccount?: (accountId: string) => Promise<AccountDeleteResponse>;
   onConnectSimpleFin?: (setupToken?: string) => Promise<SimpleFinActionResponse>;
   onDisconnectSimpleFin?: () => Promise<SimpleFinActionResponse>;
+  onImportStatement?: (file: File) => Promise<StatementImportResponse>;
   onSyncSimpleFin?: () => Promise<SimpleFinActionResponse>;
   onRefreshAccounts?: () => Promise<Account[]>;
   onRefreshTransactions?: () => Promise<Transaction[]>;
@@ -33,6 +34,7 @@ export function AccountsView({
   onDeleteAccount = deleteAccount,
   onConnectSimpleFin = connectSimpleFin,
   onDisconnectSimpleFin = disconnectSimpleFin,
+  onImportStatement = importStatement,
   onSyncSimpleFin = syncSimpleFin,
   onRefreshAccounts = getAccounts,
   onRefreshTransactions = getTransactions
@@ -49,6 +51,8 @@ export function AccountsView({
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [simpleFinStatus, setSimpleFinStatus] = useState(initialSimpleFinStatus);
   const [setupToken, setSetupToken] = useState("");
+  const [statementPreviewCount, setStatementPreviewCount] = useState(0);
+  const statementFileRef = useRef<File[]>([]);
 
   const selectedAccount = accounts.find((account) => account.id === selectedAccountId) ?? null;
   const totals = summarizeAccounts(accounts);
@@ -116,6 +120,55 @@ export function AccountsView({
         setTransactions(refreshedTransactions);
       }
     });
+  }
+
+  async function handleStatementImport(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const selectedStatementFiles = statementFileRef.current;
+    if (selectedStatementFiles.length === 0) {
+      setError("Choose one or more statement files before importing.");
+      return;
+    }
+    await runAction("statement-import", async () => {
+      const responses = await importStatementFiles(selectedStatementFiles);
+      if (responses.length === 1) {
+        setIsAddDialogOpen(false);
+      }
+      statementFileRef.current = [];
+    });
+  }
+
+  async function handleExistingStatementUpdate(files: File[]) {
+    if (files.length === 0) {
+      setError("Choose one or more statement files before updating transactions.");
+      return;
+    }
+    await runAction("statement-update", async () => {
+      await importStatementFiles(files);
+    });
+  }
+
+  async function importStatementFiles(files: File[]) {
+    const responses: StatementImportResponse[] = [];
+    for (const selectedStatementFile of files) {
+      responses.push(await onImportStatement(selectedStatementFile));
+    }
+    setAccounts((current) => {
+      const importedAccounts = new Map(responses.map((response) => [response.account.id, response.account]));
+      const withoutImported = current.filter((account) => !importedAccounts.has(account.id));
+      return [...withoutImported, ...importedAccounts.values()];
+    });
+    const importedTransactions = responses.reduce((sum, response) => sum + response.created_transactions, 0);
+    const previewRows = responses.reduce((sum, response) => sum + response.preview_rows.length, 0);
+    setStatementPreviewCount(previewRows);
+    setMessage(
+      responses.length === 1
+        ? responses[0].message
+        : `Imported ${responses.length} statement files and ${importedTransactions} new transactions.`
+    );
+    const refreshedTransactions = await onRefreshTransactions();
+    setTransactions(refreshedTransactions);
+    return responses;
   }
 
   async function runAction(label: string, action: () => Promise<void>) {
@@ -292,25 +345,29 @@ export function AccountsView({
                 <button className="primary-action-button" type="submit" disabled={pendingAction === "create"}>Add manual account</button>
               </form>
             ) : (
-              <div className="statement-import-panel">
+              <form className="statement-import-panel" onSubmit={handleStatementImport}>
                 <label>
-                  <span>Statement file</span>
-                  <input accept=".pdf,.csv" type="file" />
-                </label>
-                <label>
-                  <span>Match account type</span>
-                  <select defaultValue="checking">
-                    <option value="checking">Checking</option>
-                    <option value="savings">Savings</option>
-                    <option value="credit_card">Credit card</option>
-                  </select>
+                  <span>Statement files</span>
+                  <input
+                    accept=".pdf,.csv,.txt"
+                    multiple
+                    name="statement_file"
+                    type="file"
+                    onChange={(event) => {
+                      statementFileRef.current = Array.from(event.target.files ?? []);
+                    }}
+                  />
                 </label>
                 <div className="statement-import-state">
-                  <strong>PDF OCR import</strong>
-                  <small>Statement parsing will create reviewable transactions before anything is saved.</small>
+                  <strong>Historical statement import</strong>
+                  <small>
+                    {statementPreviewCount > 0
+                      ? `${statementPreviewCount} preview rows from the last import.`
+                      : "Select one or more monthly PDF statements. Existing statement accounts are updated and older months are appended."}
+                  </small>
                 </div>
-                <button className="primary-action-button" type="button" disabled>Review import</button>
-              </div>
+                <button className="primary-action-button" type="submit" disabled={pendingAction === "statement-import"}>Import selected statement files</button>
+              </form>
             )}
           </div>
         </div>
@@ -328,6 +385,7 @@ export function AccountsView({
           onDelete={handleDelete}
           onStartDelete={setDeleteCandidateId}
           onSyncSimpleFin={() => handleSimpleFin("sync", onSyncSimpleFin)}
+          onUpdateStatementTransactions={handleExistingStatementUpdate}
           pendingAction={pendingAction}
         />
       ) : null}
@@ -423,6 +481,7 @@ type AccountDetailsDialogProps = {
   onDelete: (account: Account) => Promise<void>;
   onStartDelete: (accountId: string) => void;
   onSyncSimpleFin: () => Promise<void>;
+  onUpdateStatementTransactions: (files: File[]) => Promise<void>;
   pendingAction: string | null;
 };
 
@@ -434,12 +493,20 @@ function AccountDetailsDialog({
   onDelete,
   onStartDelete,
   onSyncSimpleFin,
+  onUpdateStatementTransactions,
   pendingAction
 }: AccountDetailsDialogProps) {
   const isStatement = account.source === "csv" || account.source === "statement" || account.source === "statement_import";
   const isBridge = account.source === "mock_simplefin" || account.source === "simplefin";
   const isDeleteCandidate = deleteCandidateId === account.id;
   const syncLabel = isBridge ? "Sync now" : isStatement ? "Update statement" : "Manual account";
+  const updateFilesRef = useRef<File[]>([]);
+
+  async function handleUpdateTransactions(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await onUpdateStatementTransactions(updateFilesRef.current);
+    updateFilesRef.current = [];
+  }
 
   return (
     <div
@@ -512,8 +579,35 @@ function AccountDetailsDialog({
           )}
         </section>
 
+        {isStatement ? (
+          <form className="statement-update-panel" onSubmit={handleUpdateTransactions}>
+            <div className="account-detail-section-heading">
+              <h3>Update transactions</h3>
+              <span>Current or historical statement</span>
+            </div>
+            <label>
+              <span>Statement update files</span>
+              <input
+                accept=".pdf,.csv,.txt"
+                multiple
+                name="statement_update_files"
+                type="file"
+                onChange={(event) => {
+                  updateFilesRef.current = Array.from(event.target.files ?? []);
+                }}
+              />
+            </label>
+            <p className="empty-copy">Upload the newest monthly statement to update this account, or older statements to fill missing months.</p>
+            <button className="primary-action-button" type="submit" disabled={pendingAction === "statement-update"}>
+              Update transactions
+            </button>
+          </form>
+        ) : null}
+
         <div className="account-detail-actions account-detail-footer-actions">
-          <button className="primary-action-button" type="button" onClick={isBridge ? onSyncSimpleFin : undefined} disabled={!isBridge || pendingAction === "sync"}>{syncLabel}</button>
+          {isBridge || !isStatement ? (
+            <button className="primary-action-button" type="button" onClick={isBridge ? onSyncSimpleFin : undefined} disabled={!isBridge || pendingAction === "sync"}>{syncLabel}</button>
+          ) : null}
           {isDeleteCandidate ? (
             <button type="button" onClick={() => onDelete(account)} aria-label={`Confirm delete ${account.name}`}>Confirm delete</button>
           ) : (

@@ -3,7 +3,7 @@ from datetime import date
 from pathlib import Path
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -12,7 +12,8 @@ from app.domain.analytics import build_monthly_summary
 from app.domain.forecast import build_cashflow_forecast
 from app.domain.net_worth import build_net_worth_history
 from app.domain.recurring import detect_recurring_items
-from app.domain.schemas import Account, AccountCreateRequest, AccountDeleteResponse, AccountUpdateRequest, BudgetSettings, CsvTransactionRow, DashboardSnapshot, Holding, HoldingDeleteResponse, HoldingRequest, NetWorthHistory, PortfolioSnapshot, SimpleFinConnectRequest, SimpleFinStatus, Transaction
+from app.domain.schemas import Account, AccountCreateRequest, AccountDeleteResponse, AccountUpdateRequest, BudgetSettings, CsvTransactionRow, DashboardSnapshot, Holding, HoldingDeleteResponse, HoldingRequest, NetWorthHistory, PortfolioSnapshot, SimpleFinConnectRequest, SimpleFinStatus, StatementImportResponse, Transaction
+from app.domain.statement_import import extract_statement_text, parse_statement_text
 from app.db_store import DatabaseStore
 from app.store import LocalStore, AccountConflictError, AccountNotFoundError
 
@@ -162,6 +163,28 @@ def create_app(store: LocalStore | DatabaseStore | None = None, simplefin_servic
     @app.post("/api/imports/csv", response_model=CsvImportResponse)
     def import_csv(request: CsvImportRequest) -> CsvImportResponse:
         return CsvImportResponse(created_transactions=app.state.store.import_csv_rows(request.rows))
+
+    @app.post("/api/imports/statement", response_model=StatementImportResponse)
+    async def import_statement(file: UploadFile = File(...)) -> StatementImportResponse:
+        content = await file.read()
+        try:
+            text = extract_statement_text(content, filename=file.filename or "", content_type=file.content_type or "")
+            parsed = parse_statement_text(text, filename=file.filename or "")
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        account, created_transactions = app.state.store.import_statement_rows(
+            parsed.rows,
+            account_name=parsed.account_name,
+            account_type=parsed.account_type,
+            balance=parsed.balance,
+            currency=parsed.currency,
+        )
+        return StatementImportResponse(
+            account=account,
+            created_transactions=created_transactions,
+            preview_rows=parsed.rows[:10],
+            message=f"Imported {created_transactions} transactions from {account.name}.",
+        )
 
     @app.post("/api/seed/demo")
     def seed_demo() -> dict[str, str]:
