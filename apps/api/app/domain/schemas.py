@@ -90,6 +90,13 @@ class CsvTransactionRow(BaseModel):
     currency: str = "CAD"
 
 
+class StatementImportResponse(BaseModel):
+    account: Account
+    created_transactions: int
+    preview_rows: list[CsvTransactionRow]
+    message: str
+
+
 class Transaction(BaseModel):
     id: str
     user_id: str

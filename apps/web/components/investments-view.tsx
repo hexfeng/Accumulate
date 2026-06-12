@@ -147,39 +147,47 @@ export function InvestmentsView({ accounts, initialHoldings, initialPortfolio }:
           <h2>Holdings</h2>
           <span>{holdings.length} manual entries</span>
         </div>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Symbol</th>
-                <th>Name</th>
-                <th>Account</th>
-                <th className="num">Quantity</th>
-                <th className="num">Price</th>
-                <th className="num">Value</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {holdings.map((holding) => (
-                <tr key={holding.id}>
-                  <td><strong>{holding.symbol}</strong></td>
-                  <td>{holding.name}</td>
-                  <td>{holding.account_name}</td>
-                  <td className="num">{holding.quantity}</td>
-                  <td className="num">{formatCurrency(holding.market_price)}</td>
-                  <td className="num">{formatCurrency(holding.quantity * holding.market_price)}</td>
-                  <td>
-                    <div className="table-action-row">
-                      <button type="button" onClick={() => openEditDialog(holding)} aria-label={`Edit ${holding.symbol}`}>Edit</button>
-                      <button type="button" onClick={() => removeHolding(holding)} aria-label={`Delete ${holding.symbol}`}>Delete</button>
-                    </div>
-                  </td>
+        {holdings.length > 0 ? (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Symbol</th>
+                  <th>Name</th>
+                  <th>Account</th>
+                  <th className="num">Quantity</th>
+                  <th className="num">Price</th>
+                  <th className="num">Value</th>
+                  <th>Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {holdings.map((holding) => (
+                  <tr key={holding.id}>
+                    <td><strong>{holding.symbol}</strong></td>
+                    <td>{holding.name}</td>
+                    <td>{holding.account_name}</td>
+                    <td className="num">{holding.quantity}</td>
+                    <td className="num">{formatCurrency(holding.market_price)}</td>
+                    <td className="num">{formatCurrency(holding.quantity * holding.market_price)}</td>
+                    <td>
+                      <div className="table-action-row">
+                        <button type="button" onClick={() => openEditDialog(holding)} aria-label={`Edit ${holding.symbol}`}>Edit</button>
+                        <button type="button" onClick={() => removeHolding(holding)} aria-label={`Delete ${holding.symbol}`}>Delete</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="empty-copy">
+            {isSimpleFinBalancePortfolio
+              ? "SimpleFIN investment accounts are balance-only right now. Add manual holdings to see symbols, quantities, and prices here."
+              : "No holdings have been added yet."}
+          </p>
+        )}
       </article>
 
       {isDialogOpen ? (

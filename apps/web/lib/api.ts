@@ -1,5 +1,5 @@
 import { demoHoldings, demoPortfolio, demoSettings } from "./demo-data";
-import type { Account, AccountDeleteResponse, AccountInput, BudgetSettings, CashflowForecast, DashboardSnapshot, Holding, HoldingDeleteResponse, HoldingInput, MonthlySummary, NetWorthHistory, NetWorthRange, PortfolioSnapshot, SimpleFinActionResponse, SimpleFinStatus, Transaction } from "./types";
+import type { Account, AccountDeleteResponse, AccountInput, BudgetSettings, CashflowForecast, DashboardSnapshot, Holding, HoldingDeleteResponse, HoldingInput, MonthlySummary, NetWorthHistory, NetWorthRange, PortfolioSnapshot, SimpleFinActionResponse, SimpleFinStatus, StatementImportResponse, Transaction } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 const EMPTY_FORECAST: CashflowForecast = {
@@ -101,6 +101,28 @@ export async function updateAccount(accountId: string, input: AccountInput): Pro
 
 export async function deleteAccount(accountId: string): Promise<AccountDeleteResponse> {
   return sendJson<AccountDeleteResponse>(`/api/accounts/${accountId}`, "DELETE");
+}
+
+export async function importStatement(file: File): Promise<StatementImportResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await fetch(`${API_BASE}/api/imports/statement`, {
+    method: "POST",
+    body: formData
+  });
+  if (!response.ok) {
+    let message = `Request failed with status ${response.status}`;
+    try {
+      const data = await response.json();
+      if (typeof data.detail === "string") {
+        message = data.detail;
+      }
+    } catch {
+      // Keep the status-based message when the API does not return JSON.
+    }
+    throw new Error(message);
+  }
+  return (await response.json()) as StatementImportResponse;
 }
 
 export async function createHolding(input: HoldingInput): Promise<Holding> {

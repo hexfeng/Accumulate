@@ -112,6 +112,7 @@ describe("InvestmentsView", () => {
 
     expect(screen.getAllByText("$12,927.99").length).toBeGreaterThan(0);
     expect(screen.getAllByText("SimpleFIN balances").length).toBeGreaterThan(0);
+    expect(screen.getByText("SimpleFIN investment accounts are balance-only right now. Add manual holdings to see symbols, quantities, and prices here.")).toBeInTheDocument();
     expect(screen.getAllByText("Self Directed TFSA").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Self Directed RRSP").length).toBeGreaterThan(0);
     expect(screen.getAllByText("$10,776.13").length).toBeGreaterThan(0);

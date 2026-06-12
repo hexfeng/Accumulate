@@ -24,6 +24,8 @@ type TransactionAccountGroup = {
 export function TransactionsView({ initialTransactions }: { initialTransactions: Transaction[] }) {
   const [transactions, setTransactions] = useState(initialTransactions);
   const [filter, setFilter] = useState("all");
+  const [activeMonthDialog, setActiveMonthDialog] = useState<{ account: TransactionAccountGroup; month: TransactionMonthGroup } | null>(null);
+  const [historyDialogAccount, setHistoryDialogAccount] = useState<TransactionAccountGroup | null>(null);
 
   const visibleTransactions = useMemo(() => {
     return transactions
@@ -76,49 +78,15 @@ export function TransactionsView({ initialTransactions }: { initialTransactions:
                   <p>{accountGroup.transactions.length} transactions</p>
                 </div>
               </div>
-              <div className="transaction-month-stack">
-                {accountGroup.months.map((monthGroup) => (
-                  <section className="transaction-month-section" key={monthGroup.key}>
-                    <div className="transaction-month-heading">
-                      <h3>{monthGroup.label}</h3>
-                      <span>{monthGroup.transactions.length} entries</span>
-                    </div>
-                    <div className="table-wrap">
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>Date</th>
-                            <th>Merchant</th>
-                            <th>Category</th>
-                            <th className="num">Amount</th>
-                            <th>Confidence</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {monthGroup.transactions.map((transaction) => (
-                            <tr key={transaction.id}>
-                              <td>{transaction.transaction_date}</td>
-                              <td>
-                                <strong>{transaction.merchant_normalized ?? transaction.merchant_raw}</strong>
-                                <small>{transaction.source}</small>
-                              </td>
-                              <td>
-                                <select className="table-select" value={transaction.category ?? "Uncategorized"} onChange={(event) => updateCategory(transaction, event.target.value)}>
-                                  {categories.map((category) => (
-                                    <option value={category} key={category}>{category}</option>
-                                  ))}
-                                </select>
-                              </td>
-                              <td className={transaction.amount < 0 ? "num negative" : "num positive"}>{formatCurrency(transaction.amount)}</td>
-                              <td>{transaction.confidence ? `${Math.round(transaction.confidence * 100)}%` : "-"}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </section>
-                ))}
-              </div>
+              {accountGroup.months[0] ? (
+                <TransactionMonthPreview
+                  accountGroup={accountGroup}
+                  monthGroup={accountGroup.months[0]}
+                  onOpenHistory={() => setHistoryDialogAccount(accountGroup)}
+                  onOpenMonth={() => setActiveMonthDialog({ account: accountGroup, month: accountGroup.months[0] })}
+                  onUpdateCategory={updateCategory}
+                />
+              ) : null}
             </section>
           ))}
         </div>
@@ -127,7 +95,190 @@ export function TransactionsView({ initialTransactions }: { initialTransactions:
           <p className="empty-copy">No transactions found for the selected category.</p>
         </article>
       )}
+
+      {activeMonthDialog ? (
+        <MonthTransactionsDialog
+          accountGroup={activeMonthDialog.account}
+          monthGroup={activeMonthDialog.month}
+          onClose={() => setActiveMonthDialog(null)}
+          onUpdateCategory={updateCategory}
+        />
+      ) : null}
+
+      {historyDialogAccount ? (
+        <MonthlyHistoryDialog
+          accountGroup={historyDialogAccount}
+          onClose={() => setHistoryDialogAccount(null)}
+          onOpenMonth={(month) => {
+            setHistoryDialogAccount(null);
+            setActiveMonthDialog({ account: historyDialogAccount, month });
+          }}
+        />
+      ) : null}
     </section>
+  );
+}
+
+function TransactionMonthPreview({
+  accountGroup,
+  monthGroup,
+  onOpenHistory,
+  onOpenMonth,
+  onUpdateCategory
+}: {
+  accountGroup: TransactionAccountGroup;
+  monthGroup: TransactionMonthGroup;
+  onOpenHistory: () => void;
+  onOpenMonth: () => void;
+  onUpdateCategory: (transaction: Transaction, category: string) => void;
+}) {
+  const previewTransactions = monthGroup.transactions.slice(0, 5);
+  const hiddenCount = Math.max(monthGroup.transactions.length - previewTransactions.length, 0);
+
+  return (
+    <div className="transaction-month-stack">
+      <section className="transaction-month-section">
+        <div className="transaction-month-heading">
+          <div>
+            <h3>{monthGroup.label}</h3>
+            <span>
+              Showing {previewTransactions.length} of {monthGroup.transactions.length} entries
+            </span>
+          </div>
+          <div className="transaction-month-actions">
+            <button
+              type="button"
+              onClick={onOpenMonth}
+              aria-label={`View all ${monthGroup.label} transactions for ${accountGroup.accountName}`}
+            >
+              View all
+            </button>
+            <button
+              type="button"
+              onClick={onOpenHistory}
+              aria-label={`View ${accountGroup.accountName} history by month`}
+            >
+              History by month
+            </button>
+          </div>
+        </div>
+        <TransactionTable transactions={previewTransactions} onUpdateCategory={onUpdateCategory} />
+        {hiddenCount > 0 ? <p className="empty-copy">{hiddenCount} more entries in {monthGroup.label}.</p> : null}
+      </section>
+    </div>
+  );
+}
+
+function MonthTransactionsDialog({
+  accountGroup,
+  monthGroup,
+  onClose,
+  onUpdateCategory
+}: {
+  accountGroup: TransactionAccountGroup;
+  monthGroup: TransactionMonthGroup;
+  onClose: () => void;
+  onUpdateCategory: (transaction: Transaction, category: string) => void;
+}) {
+  const titleId = `transactions-${accountGroup.accountId}-${monthGroup.key}`;
+
+  return (
+    <div className="account-dialog-backdrop" role="presentation" onClick={(event) => event.currentTarget === event.target && onClose()}>
+      <div className="account-dialog transaction-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+        <div className="account-dialog-header">
+          <div>
+            <span className="section-eyebrow">{monthGroup.label}</span>
+            <h2 id={titleId}>{accountGroup.accountName} {monthGroup.label} transactions</h2>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close transactions dialog">Close</button>
+        </div>
+        <TransactionTable transactions={monthGroup.transactions} onUpdateCategory={onUpdateCategory} />
+      </div>
+    </div>
+  );
+}
+
+function MonthlyHistoryDialog({
+  accountGroup,
+  onClose,
+  onOpenMonth
+}: {
+  accountGroup: TransactionAccountGroup;
+  onClose: () => void;
+  onOpenMonth: (month: TransactionMonthGroup) => void;
+}) {
+  const titleId = `history-${accountGroup.accountId}`;
+
+  return (
+    <div className="account-dialog-backdrop" role="presentation" onClick={(event) => event.currentTarget === event.target && onClose()}>
+      <div className="account-dialog transaction-history-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+        <div className="account-dialog-header">
+          <div>
+            <span className="section-eyebrow">Statement history</span>
+            <h2 id={titleId}>{accountGroup.accountName} monthly history</h2>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close monthly history">Close</button>
+        </div>
+        <div className="list-stack">
+          {accountGroup.months.map((month) => {
+            const spending = month.transactions.reduce((sum, transaction) => sum + (isSpendingTransaction(transaction) ? Math.abs(transaction.amount) : 0), 0);
+            return (
+              <button className="list-row list-link-row" key={month.key} type="button" onClick={() => onOpenMonth(month)}>
+                <span>
+                  <strong>{month.label}</strong>
+                  <small>{month.transactions.length} transactions</small>
+                </span>
+                <b>{formatCurrency(spending)}</b>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TransactionTable({
+  onUpdateCategory,
+  transactions
+}: {
+  onUpdateCategory: (transaction: Transaction, category: string) => void;
+  transactions: Transaction[];
+}) {
+  return (
+    <div className="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Merchant</th>
+            <th>Category</th>
+            <th className="num">Amount</th>
+            <th>Confidence</th>
+          </tr>
+        </thead>
+        <tbody>
+          {transactions.map((transaction) => (
+            <tr key={transaction.id}>
+              <td>{transaction.transaction_date}</td>
+              <td>
+                <strong>{transaction.merchant_normalized ?? transaction.merchant_raw}</strong>
+                <small>{transaction.source}</small>
+              </td>
+              <td>
+                <select className="table-select" value={transaction.category ?? "Uncategorized"} onChange={(event) => onUpdateCategory(transaction, event.target.value)}>
+                  {categories.map((category) => (
+                    <option value={category} key={category}>{category}</option>
+                  ))}
+                </select>
+              </td>
+              <td className={transaction.amount < 0 ? "num negative" : "num positive"}>{formatCurrency(transaction.amount)}</td>
+              <td>{transaction.confidence ? `${Math.round(transaction.confidence * 100)}%` : "-"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -163,4 +314,8 @@ function groupTransactions(transactions: Transaction[]): TransactionAccountGroup
 function formatMonth(month: string) {
   const [year, monthIndex] = month.split("-").map(Number);
   return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(year, monthIndex - 1, 1)));
+}
+
+function isSpendingTransaction(transaction: Transaction) {
+  return transaction.amount < 0 && !transaction.is_excluded_from_spending && !["Income", "Payment", "Transfer"].includes(transaction.category ?? "");
 }

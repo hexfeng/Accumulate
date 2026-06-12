@@ -11,7 +11,7 @@ FinSight is a local-first personal finance workspace for bank-account tracking, 
 - Rule-based categorization with user correction rules.
 - Monthly spending summaries, recurring detection, and cashflow forecast engine.
 - Next.js app shell with Dashboard, Cash, Accounts, Transactions, Spending, Recap, Investments, and Settings MVP pages.
-- Accounts page with SimpleFIN Bridge status, setup-token connect flow, sync freshness, retry/error state, separated cash and credit-card account views, institution visuals, source labels, clean one-line account rows, and click-through account detail/update modals.
+- Accounts page with SimpleFIN Bridge status, setup-token connect flow, sync freshness, retry/error state, separated cash and credit-card account views, institution visuals, source labels, clean one-line account rows, multi-file historical statement import, and click-through account detail/update modals.
 - Cash page with monthly in-flow/out-flow KPIs, available cash, net position, 30/60/90 day forecast, cash account distribution, and matching compact account rows.
 - Recap page with period support, income/spending/net cashflow, savings rate, recurring costs, notable categories, top merchants, sparse-data states, and Transactions drill-down links.
 - Spending page expansion with budget threshold watchlists, category/merchant drill-downs, recurring cost drill-downs, and period-preserving Transactions links.
@@ -58,6 +58,13 @@ Completed:
 - Synced SimpleFIN accounts now write `source="simplefin"`, stable external account IDs, balances, `last_synced_at`, and de-duplicated transactions with `external_id`.
 - Accounts shows setup-token entry, sync freshness, last error, retry count, and next retry time while preserving the existing Connect / Sync now / Disconnect controls.
 
+2026-06-12 Statement import and Transactions UX:
+
+- Statement import accepts multiple monthly PDF/TXT/CSV statement files in one modal flow, while existing statement account detail dialogs provide `Update transactions` for later monthly statements.
+- Current or newer statement imports update the statement account balance; older historical statement imports append missing transactions without rolling the account balance back.
+- Imported credit-card statement expenses are persisted as statement transactions and included in monthly spending analytics when they are not payments or transfers.
+- Transactions now defaults each account to its latest month and the five newest rows, with dialogs for all transactions in that month and history by month.
+
 ## Planned frontend navigation
 
 The current web app implements Dashboard, Cash, Spending, Investments, Recap, Transactions, Accounts, and Settings as MVP pages.
@@ -67,8 +74,8 @@ The current web app implements Dashboard, Cash, Spending, Investments, Recap, Tr
 - Spending (`/spending`) for income, expenses, budget usage, merchant/category insights, and recurring costs.
 - Investments (`/investments`) for manual holdings, portfolio value, cost basis, unrealized gains, allocation, and account grouping.
 - Recap (`/recap`) for period income, spending, net cashflow, savings rate, recurring costs, notable categories, and merchant summaries.
-- Transactions (`/transactions`) for transaction drill-down, review, categorization, and local rule creation.
-- Accounts (`/accounts`) for SimpleFIN Bridge status, cash account summaries, credit-card obligations, manual/statement data entry, compact account rows, account detail/update modals, and sync health.
+- Transactions (`/transactions`) for transaction drill-down, review, categorization, local rule creation, compact latest-month account previews, and monthly history dialogs.
+- Accounts (`/accounts`) for SimpleFIN Bridge status, cash account summaries, credit-card obligations, manual data entry, multi-file historical statement import, compact account rows, account detail/update modals, and sync health.
 - SimpleFIN setup tokens can be entered from `/accounts`; credentials are stored locally and can be disconnected from the same panel.
 - Settings (`/settings`) for budgets, category budgets, forecast assumptions, currency/timezone, AI privacy mode, and local-first preferences.
 
