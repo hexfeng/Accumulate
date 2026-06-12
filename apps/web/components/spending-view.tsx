@@ -64,6 +64,7 @@ export function SpendingView({ accounts = [], recurringItems = [], summary, tran
   const [isRecurringDialogOpen, setIsRecurringDialogOpen] = useState(false);
   const [selectedAccountDialogId, setSelectedAccountDialogId] = useState<string | null>(null);
   const [chartMode, setChartMode] = useState<"monthly" | "weekly">("monthly");
+  const [hoveredWeeklyIndex, setHoveredWeeklyIndex] = useState<number | null>(null);
 
   const selectedAccountDialog = accounts.find((account) => account.id === selectedAccountDialogId) ?? null;
   const visibleSlice = summarizeFromMonthlySummary(summary);
@@ -80,11 +81,19 @@ export function SpendingView({ accounts = [], recurringItems = [], summary, tran
     left: `${Number(weeklySpendChart.lastPoint.x)}%`,
     top: `${(Number(weeklySpendChart.lastPoint.y) / 44) * 100}%`
   };
+  const hoveredWeeklyRow = hoveredWeeklyIndex === null ? null : weeklySpendRows[hoveredWeeklyIndex] ?? null;
+  const hoveredWeeklyPoint = hoveredWeeklyIndex === null ? null : weeklySpendChart.points[hoveredWeeklyIndex] ?? null;
   const budgetUsedPct = budget > 0 ? (visibleSlice.totalSpending / budget) * 100 : 0;
   const remainingBudget = budget - visibleSlice.totalSpending;
   const topCategory = visibleSlice.categories[0];
   const topMerchant = visibleSlice.merchants[0];
   const recurringTotal = recurringItems.reduce((sum, item) => sum + item.monthly_amount, 0);
+
+  function updateHoveredWeeklyPoint(event: { currentTarget: HTMLDivElement; clientX: number }) {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const ratio = Math.min(Math.max((event.clientX - bounds.left) / Math.max(bounds.width, 1), 0), 1);
+    setHoveredWeeklyIndex(Math.round(ratio * Math.max(weeklySpendRows.length - 1, 0)));
+  }
 
   return (
     <section className="page-stack spending-page" aria-label="Spending analysis">
@@ -178,7 +187,14 @@ export function SpendingView({ accounts = [], recurringItems = [], summary, tran
               </>
             ) : (
               <div className="weekly-spend-trend">
-                <div className="weekly-spend-line-chart" aria-label="Weekly spending trend" role="img">
+                <div
+                  className="weekly-spend-line-chart"
+                  aria-label="Weekly spending trend"
+                  onMouseMove={updateHoveredWeeklyPoint}
+                  onPointerLeave={() => setHoveredWeeklyIndex(null)}
+                  onPointerMove={updateHoveredWeeklyPoint}
+                  role="img"
+                >
                   <svg preserveAspectRatio="none" viewBox="0 0 100 44">
                     <defs>
                       <linearGradient id="weeklySpendArea" x1="0" x2="0" y1="0" y2="1">
@@ -201,6 +217,16 @@ export function SpendingView({ accounts = [], recurringItems = [], summary, tran
                     <path className="weekly-spend-line" d={weeklySpendChart.pathData} filter="url(#weeklySpendLineShadow)" />
                   </svg>
                   <span aria-hidden="true" className="weekly-spend-endpoint-dot" style={weeklySpendEndpointStyle} />
+                  {hoveredWeeklyRow && hoveredWeeklyPoint ? (
+                    <>
+                      <span aria-hidden="true" className="chart-hover-guide" style={{ left: `${hoveredWeeklyPoint.x}%` }} />
+                      <span aria-hidden="true" className="chart-hover-dot" style={{ left: `${hoveredWeeklyPoint.x}%`, top: `${(hoveredWeeklyPoint.y / 44) * 100}%` }} />
+                      <span className="chart-tooltip" style={{ left: `${hoveredWeeklyPoint.x}%`, top: `${(hoveredWeeklyPoint.y / 44) * 100}%` }}>
+                        <strong>{formatLongDate(hoveredWeeklyRow.date)}</strong>
+                        <small>{formatCurrency(hoveredWeeklyRow.spending)}</small>
+                      </span>
+                    </>
+                  ) : null}
                 </div>
                 <div className="weekly-spend-axis" aria-label="Weekly spending days">
                   {weeklySpendRows.map((row) => (
@@ -222,24 +248,28 @@ export function SpendingView({ accounts = [], recurringItems = [], summary, tran
             </div>
           </div>
           <div className="account-spend-list">
-            {accountBreakdown.map((item) => (
-              <button
-                className="account-spend-row"
-                key={item.account.id}
-                type="button"
-                onClick={() => setSelectedAccountDialogId(item.account.id)}
-                aria-label={`View ${item.account.name} spending`}
-              >
-                <span className="account-spend-identity">
-                  <AccountVisual account={item.account} />
-                  <span className="account-spend-copy">
-                    <strong>{item.account.name}</strong>
-                    <small>{accountSubtitle(item.account)}</small>
+            {accountBreakdown.length > 0 ? (
+              accountBreakdown.map((item) => (
+                <button
+                  className="account-spend-row"
+                  key={item.account.id}
+                  type="button"
+                  onClick={() => setSelectedAccountDialogId(item.account.id)}
+                  aria-label={`View ${item.account.name} spending`}
+                >
+                  <span className="account-spend-identity">
+                    <AccountVisual account={item.account} />
+                    <span className="account-spend-copy">
+                      <strong>{item.account.name}</strong>
+                      <small>{accountSubtitle(item.account)}</small>
+                    </span>
                   </span>
-                </span>
-                <b>{formatCurrency(item.spending)}</b>
-              </button>
-            ))}
+                  <b>{formatCurrency(item.spending)}</b>
+                </button>
+              ))
+            ) : (
+              <p className="empty-copy">No spending transactions found for {formatMonth(summary.month)}.</p>
+            )}
           </div>
         </article>
       </div>
@@ -280,15 +310,19 @@ export function SpendingView({ accounts = [], recurringItems = [], summary, tran
             <span>{visibleSlice.merchants.length} merchants</span>
           </div>
           <div className="list-stack">
-            {visibleSlice.merchants.map((merchant) => (
-              <Link className="list-row list-link-row" href={buildTransactionsHref({ merchant: merchant.merchant, month: summary.month })} key={merchant.merchant}>
-                <span>
-                  <strong>{merchant.merchant}</strong>
-                  <small>{merchant.transaction_count} transactions</small>
-                </span>
-                <b>{formatCurrency(merchant.amount)}</b>
-              </Link>
-            ))}
+            {visibleSlice.merchants.length > 0 ? (
+              visibleSlice.merchants.map((merchant) => (
+                <Link className="list-row list-link-row" href={buildTransactionsHref({ merchant: merchant.merchant, month: summary.month })} key={merchant.merchant}>
+                  <span>
+                    <strong>{merchant.merchant}</strong>
+                    <small>{merchant.transaction_count} transactions</small>
+                  </span>
+                  <b>{formatCurrency(merchant.amount)}</b>
+                </Link>
+              ))
+            ) : (
+              <p className="empty-copy">No merchant spending found for {formatMonth(summary.month)}.</p>
+            )}
           </div>
         </article>
       </div>
@@ -300,21 +334,25 @@ export function SpendingView({ accounts = [], recurringItems = [], summary, tran
             <span>{visibleSlice.categories.filter((category) => (category.budget_used_pct ?? 0) >= 70).length} active thresholds</span>
           </div>
           <div className="list-stack">
-            {visibleSlice.categories.map((category) => {
-              const usedPct = category.budget_used_pct ?? 0;
-              return (
-                <Link className="list-row list-link-row" href={buildTransactionsHref({ category: category.category, month: summary.month })} key={category.category}>
-                  <span>
-                    <strong>{category.category}</strong>
-                    <small>{category.budget ? `${formatCurrency(category.amount)} / ${formatCurrency(category.budget)}` : "No category budget"}</small>
-                  </span>
-                  <span>
-                    <b>{category.budget ? formatPercent(usedPct) : "No limit"}</b>
-                    <small>{categoryBudgetStatus(usedPct)}</small>
-                  </span>
-                </Link>
-              );
-            })}
+            {visibleSlice.categories.length > 0 ? (
+              visibleSlice.categories.map((category) => {
+                const usedPct = category.budget_used_pct ?? 0;
+                return (
+                  <Link className="list-row list-link-row" href={buildTransactionsHref({ category: category.category, month: summary.month })} key={category.category}>
+                    <span>
+                      <strong>{category.category}</strong>
+                      <small>{category.budget ? `${formatCurrency(category.amount)} / ${formatCurrency(category.budget)}` : "No category budget"}</small>
+                    </span>
+                    <span>
+                      <b>{category.budget ? formatPercent(usedPct) : "No limit"}</b>
+                      <small>{categoryBudgetStatus(usedPct)}</small>
+                    </span>
+                  </Link>
+                );
+              })
+            ) : (
+              <p className="empty-copy">No category spending found for {formatMonth(summary.month)}.</p>
+            )}
           </div>
         </article>
 
@@ -578,9 +616,11 @@ function buildWeeklySpendRows(month: string, transactions: Transaction[]): Weekl
   });
 }
 
-function buildWeeklySpendChart(rows: WeeklySpendRow[]): { firstPoint: { x: string; y: string }; lastPoint: { x: string; y: string }; pathData: string } {
+type ChartPoint = { x: number; y: number };
+
+function buildWeeklySpendChart(rows: WeeklySpendRow[]): { firstPoint: { x: string; y: string }; lastPoint: { x: string; y: string }; pathData: string; points: ChartPoint[] } {
   if (rows.length === 0) {
-    return { firstPoint: { x: "2", y: "38" }, lastPoint: { x: "98", y: "38" }, pathData: "M 2 38" };
+    return { firstPoint: { x: "2", y: "38" }, lastPoint: { x: "98", y: "38" }, pathData: "M 2 38", points: [] };
   }
 
   const values = rows.map((row) => row.spending);
@@ -616,7 +656,8 @@ function buildWeeklySpendChart(rows: WeeklySpendRow[]): { firstPoint: { x: strin
   return {
     firstPoint: { x: firstPoint.x.toFixed(2), y: firstPoint.y.toFixed(2) },
     lastPoint: { x: lastPoint.x.toFixed(2), y: lastPoint.y.toFixed(2) },
-    pathData
+    pathData,
+    points: chartPoints
   };
 }
 
@@ -673,7 +714,7 @@ function isMonthTransaction(transaction: Transaction, month: string) {
 }
 
 function isSpendingTransaction(transaction: Transaction) {
-  return transaction.amount < 0 && !transaction.is_excluded_from_spending && transaction.category !== "Transfer" && transaction.category !== "Income";
+  return transaction.amount < 0 && !transaction.is_excluded_from_spending && !["Income", "Payment", "Transfer"].includes(transaction.category ?? "");
 }
 
 function budgetStatus(value: number) {
@@ -734,6 +775,10 @@ function formatShortDate(date: string) {
 
 function formatTransactionDate(date: string) {
   return new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${date}T00:00:00.000Z`));
+}
+
+function formatLongDate(date: string) {
+  return new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${date}T00:00:00.000Z`));
 }
 
 function parseUTCDate(date: string) {

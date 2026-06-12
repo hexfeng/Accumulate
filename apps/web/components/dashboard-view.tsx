@@ -18,8 +18,6 @@ type KpiCardProps = {
   value: string;
 };
 
-const MONTHLY_SPENDING_LIMIT = 2_000;
-
 const DEFAULT_GOAL = {
   name: "FIRE",
   targetAmount: 1_500_000
@@ -53,6 +51,7 @@ export function DashboardView({ initialNetWorthHistory, snapshot }: Props) {
   const assetAllocation = normalizeAssetAllocation(snapshot.asset_allocation?.length ? snapshot.asset_allocation : MOCK_ASSET_ALLOCATION);
   const hasMockAllocation = assetAllocation.some((asset) => asset.is_mock);
   const allocationLabel = assetAllocation.map((asset) => `${asset.label} ${asset.percent}%`).join(", ");
+  const hasSimpleFinAccounts = snapshot.accounts.some((account) => account.source === "simplefin");
 
   return (
     <section className="page-stack dashboard-preview" aria-label="Dashboard preview">
@@ -119,7 +118,7 @@ export function DashboardView({ initialNetWorthHistory, snapshot }: Props) {
             Local-first mode
           </Link>
           <Link className="hero-chip" href="/accounts">
-            Mock SimpleFIN ready
+            {hasSimpleFinAccounts ? "SimpleFIN connected" : "Connect SimpleFIN"}
           </Link>
           <Link className="hero-primary-action" href="/accounts">
             Add data
@@ -217,7 +216,7 @@ function MonthlySpendingSummaryCard({ income, monthlyBudget, spending }: { incom
   const remainingBudget = Math.max(monthlyBudget - spending, 0);
   const total = Math.max(spending + income + remainingBudget, 1);
   const spentPct = Math.min((spending / Math.max(monthlyBudget, 1)) * 100, 100);
-  const monthlyLimitLabel = formatCurrency(MONTHLY_SPENDING_LIMIT).replace(".00", "");
+  const monthlyLimitLabel = monthlyBudget > 0 ? formatCurrency(monthlyBudget).replace(".00", "") : "not set";
   const segments = buildSpendingSummarySegments({
     incomePct: (income / total) * 100,
     otherPct: (remainingBudget / total) * 100,

@@ -1,5 +1,6 @@
 import os
 from datetime import date
+from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException
@@ -181,7 +182,13 @@ def create_app(store: LocalStore | DatabaseStore | None = None, simplefin_servic
 
     @app.get("/api/net-worth/history", response_model=NetWorthHistory)
     def net_worth_history(range: NetWorthRange = "1M") -> NetWorthHistory:
-        return build_net_worth_history(app.state.store.list_accounts(), range)
+        snapshots = app.state.store.list_account_balance_snapshots() if hasattr(app.state.store, "list_account_balance_snapshots") else []
+        return build_net_worth_history(
+            app.state.store.list_accounts(),
+            range,
+            snapshots=snapshots,
+            transactions=app.state.store.list_transactions(),
+        )
 
     @app.get("/api/dashboard", response_model=DashboardSnapshot)
     def dashboard() -> DashboardSnapshot:
@@ -199,7 +206,7 @@ def create_app(store: LocalStore | DatabaseStore | None = None, simplefin_servic
 
     @app.post("/api/integrations/simplefin/connect", response_model=SimpleFinStatus)
     def simplefin_connect(request: SimpleFinConnectRequest | None = None) -> SimpleFinStatus:
-        return SimpleFinStatus(**app.state.simplefin_service.connect(request.setup_token if request else None))
+        return SimpleFinStatus(**app.state.simplefin_service.connect(request.setup_token if request else None, app.state.store))
 
     @app.post("/api/integrations/simplefin/sync", response_model=SimpleFinStatus)
     def simplefin_sync() -> SimpleFinStatus:
@@ -216,7 +223,9 @@ def _build_default_store() -> LocalStore | DatabaseStore:
     database_url = os.getenv("FINSIGHT_DATABASE_URL")
     if database_url:
         return DatabaseStore(database_url)
-    return LocalStore()
+    database_path = Path(os.getenv("FINSIGHT_DATABASE_PATH") or Path.home() / ".finsight" / "finsight.db").expanduser()
+    database_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    return DatabaseStore(f"sqlite:///{database_path.resolve().as_posix()}")
 
 
 def _build_default_simplefin_service() -> SimpleFinService:

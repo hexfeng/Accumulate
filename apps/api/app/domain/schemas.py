@@ -45,6 +45,9 @@ class SimpleFinStatus(BaseModel):
     message: str
     has_credentials: bool = False
     last_synced_at: str | None = None
+    backfill_completed_at: str | None = None
+    transaction_coverage_start: str | None = None
+    transaction_coverage_end: str | None = None
     last_error: str | None = None
     retry_count: int = 0
     next_retry_at: str | None = None
@@ -181,12 +184,24 @@ class NetWorthHistoryPoint(BaseModel):
     value: float
 
 
+class AccountBalanceSnapshot(BaseModel):
+    account_id: str
+    account_name: str
+    snapshot_date: date
+    balance: float
+    currency: str = "CAD"
+    captured_at: str
+
+
 class NetWorthHistory(BaseModel):
     range: str
     current_value: float
     change_amount: float
     change_pct: float
     points: list[NetWorthHistoryPoint]
+    coverage_start: date | None = None
+    coverage_end: date | None = None
+    is_estimated: bool = True
 
 
 class AssetAllocationItem(BaseModel):

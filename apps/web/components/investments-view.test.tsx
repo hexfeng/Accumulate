@@ -79,4 +79,42 @@ describe("InvestmentsView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Delete VFV.TO" }));
     await waitFor(() => expect(api.deleteHolding).toHaveBeenCalledWith("vfv"));
   });
+
+  it("includes synced SimpleFIN investment account balances when holdings are empty", () => {
+    render(
+      <InvestmentsView
+        accounts={[
+          {
+            id: "simplefin-ws-tfsa",
+            user_id: "local-user",
+            name: "Self Directed TFSA",
+            type: "investment",
+            balance: 10776.13,
+            currency: "CAD",
+            institution_name: "Wealthsimple",
+            source: "simplefin"
+          },
+          {
+            id: "simplefin-ws-rrsp",
+            user_id: "local-user",
+            name: "Self Directed RRSP",
+            type: "investment",
+            balance: 2151.86,
+            currency: "CAD",
+            institution_name: "Wealthsimple",
+            source: "simplefin"
+          }
+        ]}
+        initialHoldings={[]}
+        initialPortfolio={{ total_value: 0, total_cost: 0, unrealized_gain: 0, unrealized_gain_pct: 0, allocation: [], accounts: [] }}
+      />
+    );
+
+    expect(screen.getAllByText("$12,927.99").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("SimpleFIN balances").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Self Directed TFSA").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Self Directed RRSP").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("$10,776.13").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("$2,151.86").length).toBeGreaterThan(0);
+  });
 });

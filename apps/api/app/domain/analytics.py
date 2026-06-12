@@ -19,7 +19,7 @@ def build_monthly_summary(transactions: list[Transaction], budget: BudgetSetting
     spend_transactions = [
         txn
         for txn in month_transactions
-        if txn.amount < 0 and not txn.is_excluded_from_spending and txn.category not in {"Transfer", "Income"}
+        if txn.amount < 0 and not txn.is_excluded_from_spending and txn.category not in {"Payment", "Transfer", "Income"}
     ]
     total_spending = _money(sum(abs(txn.amount) for txn in spend_transactions))
 
