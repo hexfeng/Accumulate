@@ -81,7 +81,7 @@ export type HoldingInput = {
   name: string;
   quantity: number;
   average_cost: number;
-  market_price: number;
+  market_price?: number;
   currency: string;
 };
 
@@ -90,6 +90,35 @@ export type Holding = HoldingInput & {
   user_id: string;
   account_name: string;
   source: string;
+  market_price: number;
+};
+
+export type MarketQuote = {
+  symbol: string;
+  name: string;
+  price: number;
+  currency: string;
+  provider: string;
+  as_of: string;
+};
+
+export type SecuritySearchResult = {
+  symbol: string;
+  name: string;
+  quote_type: string;
+  exchange?: string | null;
+  currency: string;
+  price?: number | null;
+  provider: string;
+  as_of?: string | null;
+};
+
+export type QuoteRefreshResponse = {
+  refreshed_count: number;
+  skipped_count: number;
+  holdings: Holding[];
+  quotes: MarketQuote[];
+  message: string;
 };
 
 export type HoldingDeleteResponse = {

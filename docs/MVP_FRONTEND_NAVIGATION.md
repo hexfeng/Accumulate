@@ -2,7 +2,7 @@
 
 This document captures the MVP frontend information architecture, route map, cross-page navigation, and current implementation status. It is the day-to-day product and task reference while the longer PRD/technical architecture document remains the broader product source.
 
-Last updated: 2026-06-11
+Last updated: 2026-06-12
 
 ## 1. Navigation principles
 
@@ -63,7 +63,7 @@ Manage
 /dashboard                -> financial command center and page hub
 /cash                     -> liquidity, monthly flow, forecast risk, account distribution
 /spending                 -> income, expenses, budgets, category and merchant insights
-/investments              -> portfolio, holdings, returns, allocation, FX exposure
+/investments              -> portfolio, quote-backed holdings, returns, allocation, FX exposure
 /recap                    -> monthly, quarterly, and yearly recap
 /transactions             -> transaction detail, review, categorization, rules
 /accounts                 -> accounts, manual CRUD, data sources, sync health
@@ -87,7 +87,7 @@ Future nested routes may include:
 | Dashboard | Implemented | Am I financially healthy right now? | KPI summary, net-worth trend, alerts, next actions, cashflow/spending previews, cross-page entry points. |
 | Cash | Implemented | Is my short-term liquidity safe? | Monthly in-flow/out-flow, available cash, net short-term position, 30/60/90 forecast, cash distribution, cash and credit account drill-downs. |
 | Spending | Implemented | Where did my money go? | Income/spending summary, budget thresholds, category and merchant drill-downs, recurring costs, spending insights. |
-| Investments | Implemented MVP | How is my wealth performing? | Manual holdings CRUD, portfolio value, cost basis, unrealized gain, allocation, and account grouping. |
+| Investments | Implemented MVP | How is my wealth performing? | Manual holdings CRUD, stock/ETF autocomplete, cached Yahoo Finance-backed portfolio price refresh, portfolio value, cost basis, unrealized gain, allocation, and account grouping. |
 | Recap | Implemented | What changed over a period? | Period income, spending, net cashflow, savings rate, recurring costs, notable categories, top merchants, sparse-data states, and action links. |
 | Transactions | Implemented MVP | Is the source data correct? | Search, filters, compact latest-month account previews, all-transactions dialogs, monthly history dialogs, categorization, exclusion, transfer marking, and rule creation. |
 | Accounts | Implemented | Are my accounts and data sources healthy? | Real SimpleFIN Bridge status/connect/sync/disconnect, setup-token entry, sync freshness, retry/error state, cash account grouping, credit-card obligation grouping, institution visuals, source labels, clean one-line account rows, modal-based manual entry, multi-file historical statement import, click-through account detail/update modals, and click-outside modal dismissal. |
@@ -283,6 +283,15 @@ Frontend completed:
 4. Confirmed imported credit-card statement expenses feed monthly spending analytics when they are not classified as payments or transfers.
 5. Changed Transactions to show each account's latest month with only the five newest rows by default, plus dialogs for the full month and month-by-month history.
 
+2026-06-12 Investment quote refresh:
+
+1. Added `GET /api/quotes/{symbol}` behind a replaceable `yfinance` quote provider.
+2. Added `GET /api/securities/search?q=...` for stock/ETF autocomplete in Add holding, with exact/prefix/contains ranking and a Nasdaq Trader symbol-directory fallback when Yahoo search is sparse.
+3. Added `POST /api/quotes/refresh?force=...` for page-level price refresh, local quote persistence, and a 15-minute cache window.
+4. Holding create/update accepts missing `market_price`; the API fetches the latest quote and uses the quote name when the holding name is blank.
+5. `/investments` automatically refreshes holding prices on page open, refreshes every 15 minutes while open, exposes a page-level `Refresh prices` action, uses compact one-line search results, and removes the per-holding `Refresh price` button.
+6. SimpleFIN investment accounts remain balance-only until manual holdings are entered, then holdings drive portfolio value and allocation.
+
 Verification completed for commit `74da22d`:
 
 ```powershell
@@ -312,7 +321,7 @@ npm run build:web
 
 ### 9.1 Recap page
 
-Status: Implemented on 2026-06-09.
+Status: Implemented on 2026-06-09; quote search/cache refresh added on 2026-06-12.
 
 Goal: make `/recap` the period summary page used by Cash in-flow/out-flow drill-downs.
 
@@ -357,11 +366,11 @@ Tasks:
 1. Add manual holding model/API.
 2. Add holding create/edit/delete UI.
 3. Add portfolio value, allocation, and account grouping.
-4. Keep external market-data integrations deferred until the manual model is stable.
+4. Add stock/ETF autocomplete and cached portfolio-level market price refresh while keeping manual price override available.
 
 Acceptance:
 
-- A user can enter holdings and see portfolio value/allocation without external integrations.
+- A user can search stock/ETF symbols while adding holdings and see portfolio value/allocation, with market prices refreshed automatically and cached locally.
 - Dashboard investment card links to meaningful setup or holdings state.
 
 ### 9.4 Settings MVP

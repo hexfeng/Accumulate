@@ -2,14 +2,14 @@ import json
 import os
 import re
 from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
 from app.domain.categorization import DEFAULT_RULES, categorize_transaction
 from app.domain.normalization import normalize_csv_transaction
-from app.domain.schemas import Account, AccountBalanceSnapshot, AssetAllocationItem, BudgetSettings, CategoryRule, CsvTransactionRow, Holding, PortfolioAccountSummary, PortfolioSnapshot, Transaction
+from app.domain.schemas import Account, AccountBalanceSnapshot, AssetAllocationItem, BudgetSettings, CategoryRule, CsvTransactionRow, Holding, MarketQuote, PortfolioAccountSummary, PortfolioSnapshot, Transaction
 from app.domain.transaction_classification import normalize_internal_flows
 
 
@@ -30,6 +30,8 @@ class LocalStore:
     holdings: dict[str, Holding] = field(default_factory=dict)
     transactions: dict[str, Transaction] = field(default_factory=dict)
     balance_snapshots: dict[str, AccountBalanceSnapshot] = field(default_factory=dict)
+    market_quotes: dict[str, MarketQuote] = field(default_factory=dict)
+    market_quote_fetched_at: dict[str, datetime] = field(default_factory=dict)
     simplefin_coverages: list[dict[str, str]] = field(default_factory=list)
     user_rules: list[CategoryRule] = field(default_factory=list)
     budget: BudgetSettings = field(default_factory=lambda: BudgetSettings(monthly_budget=3000, category_budgets={"Groceries": 650, "Dining": 500, "Subscriptions": 150}))
@@ -39,6 +41,8 @@ class LocalStore:
         self.holdings.clear()
         self.transactions.clear()
         self.balance_snapshots.clear()
+        self.market_quotes.clear()
+        self.market_quote_fetched_at.clear()
         self.simplefin_coverages.clear()
         self.user_rules.clear()
 
@@ -243,6 +247,36 @@ class LocalStore:
             raise AccountNotFoundError(f"Holding {holding_id} was not found.")
         del self.holdings[holding_id]
         return holding_id
+
+    def get_cached_quote(self, symbol: str) -> MarketQuote | None:
+        return self.market_quotes.get(symbol.strip().upper())
+
+    def save_market_quote(self, quote: MarketQuote) -> MarketQuote:
+        normalized = quote.model_copy(update={"symbol": quote.symbol.strip().upper()})
+        self.market_quotes[normalized.symbol] = normalized
+        self.market_quote_fetched_at[normalized.symbol] = datetime.now(timezone.utc)
+        return normalized
+
+    def is_cached_quote_fresh(self, symbol: str, max_age_minutes: int = 15) -> bool:
+        fetched_at = self.market_quote_fetched_at.get(symbol.strip().upper())
+        return fetched_at is not None and datetime.now(timezone.utc) - fetched_at <= timedelta(minutes=max_age_minutes)
+
+    def update_holdings_market_price(self, quote: MarketQuote) -> list[Holding]:
+        updated_holdings: list[Holding] = []
+        symbol = quote.symbol.strip().upper()
+        for holding_id, holding in list(self.holdings.items()):
+            if holding.symbol.strip().upper() != symbol:
+                continue
+            updated = holding.model_copy(
+                update={
+                    "name": quote.name or holding.name,
+                    "market_price": quote.price,
+                    "currency": quote.currency or holding.currency,
+                }
+            )
+            self.holdings[holding_id] = updated
+            updated_holdings.append(updated)
+        return updated_holdings
 
     def portfolio_snapshot(self) -> PortfolioSnapshot:
         return _build_portfolio_snapshot(self.list_holdings(), self.list_accounts())

@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 import json
 from typing import Any
 
@@ -7,7 +7,7 @@ from sqlalchemy.engine import Engine
 
 from app.domain.categorization import DEFAULT_RULES, categorize_transaction
 from app.domain.normalization import normalize_csv_transaction
-from app.domain.schemas import Account, AccountBalanceSnapshot, BudgetSettings, CategoryRule, CsvTransactionRow, Holding, PortfolioSnapshot, Transaction
+from app.domain.schemas import Account, AccountBalanceSnapshot, BudgetSettings, CategoryRule, CsvTransactionRow, Holding, MarketQuote, PortfolioSnapshot, Transaction
 from app.domain.transaction_classification import normalize_internal_flows
 from app.store import LOCAL_USER_ID, AccountConflictError, AccountNotFoundError, _build_portfolio_snapshot, _clean_simplefin_account_name, _date_from_iso, _infer_simplefin_account_type, _latest_statement_row_date, _money, _normalize_simplefin_account_type, _simplefin_account_institution, _simplefin_connection_names, _simplefin_institution_overrides, _simplefin_transaction_date, _slug, _statement_transaction_from_row
 
@@ -113,6 +113,18 @@ simplefin_sync_coverage = Table(
     Column("synced_at", String, nullable=False),
 )
 
+market_quotes = Table(
+    "market_quotes",
+    metadata,
+    Column("symbol", String, primary_key=True),
+    Column("name", String, nullable=False),
+    Column("price", Float, nullable=False),
+    Column("currency", String, nullable=False, default="CAD"),
+    Column("provider", String, nullable=False),
+    Column("as_of", String, nullable=False),
+    Column("fetched_at", String, nullable=False),
+)
+
 
 class DatabaseStore:
     def __init__(self, database_url: str):
@@ -136,11 +148,15 @@ class DatabaseStore:
             return
         transaction_columns = {column["name"] for column in inspector.get_columns("transactions")}
         account_columns = {column["name"] for column in inspector.get_columns("accounts")}
+        table_names = set(inspector.get_table_names())
+        quote_columns = {column["name"] for column in inspector.get_columns("market_quotes")} if "market_quotes" in table_names else set()
         with self.engine.begin() as connection:
             if "institution_name" not in account_columns:
                 connection.execute(text("ALTER TABLE accounts ADD COLUMN institution_name VARCHAR"))
             if "external_id" not in transaction_columns:
                 connection.execute(text("ALTER TABLE transactions ADD COLUMN external_id VARCHAR"))
+            if "market_quotes" in table_names and "fetched_at" not in quote_columns:
+                connection.execute(text("ALTER TABLE market_quotes ADD COLUMN fetched_at VARCHAR"))
 
     def _ensure_settings(self) -> None:
         with self.engine.begin() as connection:
@@ -181,6 +197,7 @@ class DatabaseStore:
     def reset(self) -> None:
         with self.engine.begin() as connection:
             connection.execute(delete(holdings))
+            connection.execute(delete(market_quotes))
             connection.execute(delete(transactions))
             connection.execute(delete(account_balance_snapshots))
             connection.execute(delete(simplefin_sync_coverage))
@@ -457,6 +474,59 @@ class DatabaseStore:
                 raise AccountNotFoundError(f"Holding {holding_id} was not found.")
             connection.execute(delete(holdings).where(holdings.c.id == holding_id))
         return holding_id
+
+    def get_cached_quote(self, symbol: str) -> MarketQuote | None:
+        with self.engine.begin() as connection:
+            row = connection.execute(select(market_quotes).where(market_quotes.c.symbol == symbol.strip().upper())).mappings().first()
+        return MarketQuote(**dict(row)) if row else None
+
+    def save_market_quote(self, quote: MarketQuote) -> MarketQuote:
+        normalized = quote.model_copy(update={"symbol": quote.symbol.strip().upper()})
+        data = normalized.model_dump()
+        data["fetched_at"] = datetime.now(timezone.utc).isoformat()
+        with self.engine.begin() as connection:
+            existing = connection.execute(select(market_quotes.c.symbol).where(market_quotes.c.symbol == normalized.symbol)).first()
+            if existing:
+                connection.execute(update(market_quotes).where(market_quotes.c.symbol == normalized.symbol).values(**data))
+            else:
+                connection.execute(insert(market_quotes).values(**data))
+            row = connection.execute(select(market_quotes).where(market_quotes.c.symbol == normalized.symbol)).mappings().one()
+        return MarketQuote(**dict(row))
+
+    def is_cached_quote_fresh(self, symbol: str, max_age_minutes: int = 15) -> bool:
+        with self.engine.begin() as connection:
+            row = connection.execute(
+                select(market_quotes.c.fetched_at).where(market_quotes.c.symbol == symbol.strip().upper())
+            ).mappings().first()
+        if row is None or not row["fetched_at"]:
+            return False
+        try:
+            fetched_at = datetime.fromisoformat(str(row["fetched_at"]).replace("Z", "+00:00"))
+        except ValueError:
+            return False
+        if fetched_at.tzinfo is None:
+            fetched_at = fetched_at.replace(tzinfo=timezone.utc)
+        return datetime.now(timezone.utc) - fetched_at <= timedelta(minutes=max_age_minutes)
+
+    def update_holdings_market_price(self, quote: MarketQuote) -> list[Holding]:
+        symbol = quote.symbol.strip().upper()
+        with self.engine.begin() as connection:
+            rows = connection.execute(select(holdings).where(holdings.c.symbol == symbol)).mappings().all()
+            updated: list[Holding] = []
+            for row in rows:
+                connection.execute(
+                    update(holdings)
+                    .where(holdings.c.id == row["id"])
+                    .values(
+                        name=quote.name or row["name"],
+                        market_price=quote.price,
+                        currency=quote.currency or row["currency"],
+                    )
+                )
+            if rows:
+                updated_rows = connection.execute(select(holdings).where(holdings.c.symbol == symbol)).mappings().all()
+                updated = [Holding(**dict(updated_row)) for updated_row in updated_rows]
+        return updated
 
     def portfolio_snapshot(self) -> PortfolioSnapshot:
         return _build_portfolio_snapshot(self.list_holdings(), self.list_accounts())

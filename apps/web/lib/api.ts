@@ -1,5 +1,5 @@
 import { demoHoldings, demoPortfolio, demoSettings } from "./demo-data";
-import type { Account, AccountDeleteResponse, AccountInput, BudgetSettings, CashflowForecast, DashboardSnapshot, Holding, HoldingDeleteResponse, HoldingInput, MonthlySummary, NetWorthHistory, NetWorthRange, PortfolioSnapshot, SimpleFinActionResponse, SimpleFinStatus, StatementImportResponse, Transaction } from "./types";
+import type { Account, AccountDeleteResponse, AccountInput, BudgetSettings, CashflowForecast, DashboardSnapshot, Holding, HoldingDeleteResponse, HoldingInput, MarketQuote, MonthlySummary, NetWorthHistory, NetWorthRange, PortfolioSnapshot, QuoteRefreshResponse, SecuritySearchResult, SimpleFinActionResponse, SimpleFinStatus, StatementImportResponse, Transaction } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 const EMPTY_FORECAST: CashflowForecast = {
@@ -73,6 +73,28 @@ export function getHoldings(): Promise<Holding[]> {
 
 export function getPortfolio(): Promise<PortfolioSnapshot> {
   return getJson("/api/portfolio", demoPortfolio);
+}
+
+export async function getQuote(symbol: string): Promise<MarketQuote> {
+  return getJson(`/api/quotes/${encodeURIComponent(symbol)}`, {
+    symbol,
+    name: symbol,
+    price: 0,
+    currency: "CAD",
+    provider: "unavailable",
+    as_of: todayISODate()
+  });
+}
+
+export async function searchSecurities(query: string): Promise<SecuritySearchResult[]> {
+  if (!query.trim()) {
+    return [];
+  }
+  return getJson(`/api/securities/search?q=${encodeURIComponent(query.trim())}`, []);
+}
+
+export async function refreshQuotes(force = false): Promise<QuoteRefreshResponse> {
+  return sendJson<QuoteRefreshResponse>(`/api/quotes/refresh?force=${force ? "true" : "false"}`, "POST");
 }
 
 export async function patchTransactionCategory(transactionId: string, category: string, merchant: string): Promise<Transaction | null> {

@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 
-import { createHolding, deleteHolding, updateHolding } from "@/lib/api";
+import { createHolding, deleteHolding, getQuote, refreshQuotes, searchSecurities, updateHolding } from "@/lib/api";
 import { formatCurrency, formatPercent } from "@/lib/format";
-import type { Account, Holding, HoldingInput, PortfolioSnapshot } from "@/lib/types";
+import type { Account, Holding, HoldingInput, PortfolioSnapshot, SecuritySearchResult } from "@/lib/types";
 
 type InvestmentsViewProps = {
   accounts: Account[];
@@ -28,6 +28,8 @@ export function InvestmentsView({ accounts, initialHoldings, initialPortfolio }:
   const [holdings, setHoldings] = useState(initialHoldings);
   const [editingHolding, setEditingHolding] = useState<Holding | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isRefreshingPrices, setIsRefreshingPrices] = useState(false);
+  const [quoteStatus, setQuoteStatus] = useState<string | null>(null);
   const accountOptions = useMemo(() => {
     const investmentAccounts = accounts.filter((account) => account.type === "investment");
     return investmentAccounts.length > 0 ? investmentAccounts : accounts;
@@ -35,6 +37,28 @@ export function InvestmentsView({ accounts, initialHoldings, initialPortfolio }:
   const investmentAccounts = useMemo(() => accounts.filter((account) => account.type === "investment"), [accounts]);
   const portfolio = useMemo(() => buildPortfolioSnapshot(holdings, initialPortfolio, investmentAccounts), [holdings, initialPortfolio, investmentAccounts]);
   const isSimpleFinBalancePortfolio = holdings.length === 0 && investmentAccounts.length > 0;
+
+  const refreshPortfolioPrices = useCallback(async (force: boolean) => {
+    setIsRefreshingPrices(true);
+    try {
+      const response = await refreshQuotes(force);
+      setHoldings(response.holdings);
+      const latestQuote = response.quotes[0];
+      setQuoteStatus(latestQuote ? `Prices refreshed ${latestQuote.as_of.slice(0, 10)}` : response.message);
+    } catch {
+      setQuoteStatus("Price refresh unavailable.");
+    } finally {
+      setIsRefreshingPrices(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshPortfolioPrices(false);
+    const intervalId = window.setInterval(() => {
+      void refreshPortfolioPrices(false);
+    }, 15 * 60 * 1000);
+    return () => window.clearInterval(intervalId);
+  }, [refreshPortfolioPrices]);
 
   function openAddDialog() {
     setEditingHolding(null);
@@ -51,7 +75,7 @@ export function InvestmentsView({ accounts, initialHoldings, initialPortfolio }:
       const updated = await updateHolding(editingHolding.id, input);
       const accountName = accountOptions.find((account) => account.id === input.account_id)?.name ?? updated.account_name;
       setHoldings((current) =>
-        current.map((holding) => (holding.id === editingHolding.id ? { ...updated, ...input, id: editingHolding.id, account_name: accountName, user_id: holding.user_id, source: holding.source } : holding))
+        current.map((holding) => (holding.id === editingHolding.id ? { ...updated, id: editingHolding.id, account_name: accountName, user_id: holding.user_id, source: holding.source } : holding))
       );
     } else {
       const created = await createHolding(input);
@@ -60,7 +84,6 @@ export function InvestmentsView({ accounts, initialHoldings, initialPortfolio }:
         ...current,
         {
           ...created,
-          ...input,
           id: created.id,
           user_id: created.user_id,
           account_name: accountName,
@@ -84,9 +107,15 @@ export function InvestmentsView({ accounts, initialHoldings, initialPortfolio }:
           <h1>Investments</h1>
           <p>Track holdings, cost basis, portfolio value, allocation, and account grouping before external market data is connected.</p>
         </div>
-        <button className="placeholder-primary" type="button" onClick={openAddDialog}>
-          Add holding
-        </button>
+        <div className="investments-header-actions">
+          {quoteStatus ? <span>{quoteStatus}</span> : null}
+          <button type="button" onClick={() => void refreshPortfolioPrices(true)} disabled={isRefreshingPrices}>
+            {isRefreshingPrices ? "Refreshing..." : "Refresh prices"}
+          </button>
+          <button className="placeholder-primary" type="button" onClick={openAddDialog}>
+            Add holding
+          </button>
+        </div>
       </header>
 
       <div className="spending-summary-grid">
@@ -234,7 +263,10 @@ function HoldingDialog({
     currency: holding?.currency ?? "CAD"
   }));
   const [isSaving, setIsSaving] = useState(false);
+  const [searchResults, setSearchResults] = useState<SecuritySearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   const title = holding ? `Edit ${holding.symbol}` : "Add holding";
+  const estimatedValue = money(Number(draft.quantity) * Number(draft.market_price ?? 0));
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -245,13 +277,50 @@ function HoldingDialog({
       name: draft.name.trim(),
       quantity: Number(draft.quantity),
       average_cost: Number(draft.average_cost),
-      market_price: Number(draft.market_price)
+      market_price: Number(draft.market_price) > 0 ? Number(draft.market_price) : undefined
     });
     setIsSaving(false);
   }
 
   function updateDraft<K extends keyof HoldingDraft>(key: K, value: HoldingDraft[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
+  }
+
+  async function handleSymbolChange(value: string) {
+    const normalized = value.trim().toUpperCase();
+    updateDraft("symbol", value);
+    if (!normalized) {
+      setSearchResults([]);
+      return;
+    }
+    setIsSearching(true);
+    try {
+      const results = await searchSecurities(normalized);
+      setSearchResults(results);
+    } finally {
+      setIsSearching(false);
+    }
+  }
+
+  async function selectSecurity(result: SecuritySearchResult) {
+    setDraft((current) => ({
+      ...current,
+      symbol: result.symbol,
+      name: result.name,
+      market_price: result.price ?? current.market_price,
+      currency: result.currency || current.currency
+    }));
+    setSearchResults([]);
+
+    if (result.price == null) {
+      const quote = await getQuote(result.symbol);
+      setDraft((current) => ({
+        ...current,
+        name: current.name || quote.name,
+        market_price: quote.price || current.market_price,
+        currency: quote.currency || current.currency
+      }));
+    }
   }
 
   return (
@@ -274,8 +343,35 @@ function HoldingDialog({
         </label>
         <label className="budget-input-row">
           <span>Symbol</span>
-          <input value={draft.symbol} onChange={(event) => updateDraft("symbol", event.target.value)} />
+          <input value={draft.symbol} onChange={(event) => void handleSymbolChange(event.target.value)} autoComplete="off" />
         </label>
+        {searchResults.length > 0 ? (
+          <div className="security-search-panel">
+            <span className="security-search-heading">Results</span>
+            <div className="security-search-results" role="listbox" aria-label="Security matches">
+              {searchResults.map((result) => (
+                <button
+                  aria-label={securityResultLabel(result)}
+                  className="security-search-result-row"
+                  type="button"
+                  role="option"
+                  aria-selected={draft.symbol === result.symbol}
+                  key={result.symbol}
+                  onClick={() => void selectSecurity(result)}
+                >
+                  <span className="security-search-avatar" aria-hidden="true">{securityAvatarLabel(result.symbol)}</span>
+                  <span className="security-search-main">
+                    <strong className="security-search-symbol">{result.symbol}</strong>
+                    <span className="security-search-name">{result.name}</span>
+                  </span>
+                  <span className="security-search-exchange">{formatExchange(result.exchange)}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : isSearching ? (
+          <p className="form-helper">Searching securities...</p>
+        ) : null}
         <label className="budget-input-row">
           <span>Name</span>
           <input value={draft.name} onChange={(event) => updateDraft("name", event.target.value)} />
@@ -292,12 +388,42 @@ function HoldingDialog({
           <span>Market price</span>
           <input min="0" step="0.01" type="number" value={draft.market_price} onChange={(event) => updateDraft("market_price", Number(event.target.value))} />
         </label>
+        <div className="quote-preview-panel">
+          <div>
+            <span>Estimated value</span>
+            <strong>{formatCurrency(estimatedValue)}</strong>
+          </div>
+        </div>
         <button className="placeholder-primary" disabled={isSaving || !draft.account_id || !draft.symbol.trim()} type="submit">
           Save holding
         </button>
       </form>
     </div>
   );
+}
+
+function securityResultLabel(result: SecuritySearchResult) {
+  return `${result.symbol} ${result.name} ${result.quote_type} ${result.exchange ?? ""} ${result.price ? formatCurrency(result.price) : ""}`.replace(/\s+/g, " ").trim();
+}
+
+function securityAvatarLabel(symbol: string) {
+  const baseSymbol = symbol.split(".", 1)[0] ?? symbol;
+  return baseSymbol.replace(/[^A-Z0-9]/gi, "").slice(0, 3).toUpperCase();
+}
+
+function formatExchange(exchange?: string | null) {
+  const normalized = (exchange ?? "").trim();
+  if (!normalized) {
+    return "Market";
+  }
+  const upper = normalized.toUpperCase();
+  if (upper === "NASDAQ") {
+    return "Nasdaq";
+  }
+  if (upper === "TORONTO") {
+    return "TSX";
+  }
+  return normalized.length <= 4 ? upper : normalized;
 }
 
 function buildPortfolioSnapshot(holdings: Holding[], fallback: PortfolioSnapshot, investmentAccounts: Account[]): PortfolioSnapshot {
