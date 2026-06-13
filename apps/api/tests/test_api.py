@@ -128,6 +128,167 @@ def test_holding_crud_and_portfolio_snapshot():
     assert client.get("/api/holdings").json() == []
 
 
+class FakeQuoteService:
+    def __init__(self):
+        self.quote_calls: list[str] = []
+        self.search_calls: list[str] = []
+        self.prices = [132.45, 135.25]
+
+    def get_quote(self, symbol: str):
+        self.quote_calls.append(symbol)
+        price = self.prices[min(len(self.quote_calls) - 1, len(self.prices) - 1)]
+        return {
+            "symbol": symbol.strip().upper(),
+            "name": "Vanguard S&P 500 Index ETF",
+            "price": price,
+            "currency": "CAD",
+            "provider": "test",
+            "as_of": "2026-06-12T13:00:00Z",
+        }
+
+    def search(self, query: str, max_results: int = 8):
+        self.search_calls.append(query)
+        return [
+            {
+                "symbol": "MU",
+                "name": "Micron Technology, Inc.",
+                "quote_type": "EQUITY",
+                "exchange": "NASDAQ",
+                "currency": "USD",
+                "price": None,
+                "provider": "test",
+                "as_of": None,
+            },
+            {
+                "symbol": "MUU.TO",
+                "name": "Mackenzie US Equity Index ETF CAD Hedged",
+                "quote_type": "ETF",
+                "exchange": "Toronto",
+                "currency": "CAD",
+                "price": None,
+                "provider": "test",
+                "as_of": None,
+            },
+        ][:max_results]
+
+
+def test_holding_create_fetches_market_price_when_missing():
+    client = TestClient(create_app(store=LocalStore(), quote_service=FakeQuoteService()))
+    client.post(
+        "/api/accounts",
+        json={"name": "TFSA", "type": "investment", "balance": 0, "currency": "CAD"},
+    )
+
+    response = client.post(
+        "/api/holdings",
+        json={
+            "account_id": "tfsa",
+            "symbol": "VFV.TO",
+            "name": "",
+            "quantity": 8,
+            "average_cost": 120,
+            "currency": "CAD",
+        },
+    )
+
+    assert response.status_code == 200
+    holding = response.json()
+    assert holding["name"] == "Vanguard S&P 500 Index ETF"
+    assert holding["market_price"] == 132.45
+    assert holding["currency"] == "CAD"
+    portfolio = client.get("/api/portfolio").json()
+    assert portfolio["total_value"] == 1059.6
+    assert portfolio["total_cost"] == 960
+
+
+def test_quote_endpoint_returns_latest_market_price():
+    quote_service = FakeQuoteService()
+    client = TestClient(create_app(store=LocalStore(), quote_service=quote_service))
+
+    response = client.get("/api/quotes/VFV.TO")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "symbol": "VFV.TO",
+        "name": "Vanguard S&P 500 Index ETF",
+        "price": 132.45,
+        "currency": "CAD",
+        "provider": "test",
+        "as_of": "2026-06-12T13:00:00Z",
+    }
+    assert quote_service.quote_calls == ["VFV.TO"]
+
+
+def test_security_search_returns_stock_and_etf_matches():
+    quote_service = FakeQuoteService()
+    client = TestClient(create_app(store=LocalStore(), quote_service=quote_service))
+
+    response = client.get("/api/securities/search?q=MU")
+
+    assert response.status_code == 200
+    assert quote_service.search_calls == ["MU"]
+    assert response.json() == [
+        {
+            "symbol": "MU",
+            "name": "Micron Technology, Inc.",
+            "quote_type": "EQUITY",
+            "exchange": "NASDAQ",
+            "currency": "USD",
+            "price": None,
+            "provider": "test",
+            "as_of": None,
+        },
+        {
+            "symbol": "MUU.TO",
+            "name": "Mackenzie US Equity Index ETF CAD Hedged",
+            "quote_type": "ETF",
+            "exchange": "Toronto",
+            "currency": "CAD",
+            "price": None,
+            "provider": "test",
+            "as_of": None,
+        },
+    ]
+
+
+def test_quote_refresh_updates_holdings_and_uses_fifteen_minute_cache():
+    quote_service = FakeQuoteService()
+    store = LocalStore()
+    client = TestClient(create_app(store=store, quote_service=quote_service))
+    client.post(
+        "/api/accounts",
+        json={"name": "TFSA", "type": "investment", "balance": 0, "currency": "CAD"},
+    )
+    client.post(
+        "/api/holdings",
+        json={
+            "account_id": "tfsa",
+            "symbol": "VFV.TO",
+            "name": "Vanguard S&P 500 Index ETF",
+            "quantity": 2,
+            "average_cost": 120,
+            "market_price": 125,
+            "currency": "CAD",
+        },
+    )
+
+    first_refresh = client.post("/api/quotes/refresh")
+    second_refresh = client.post("/api/quotes/refresh")
+    forced_refresh = client.post("/api/quotes/refresh?force=true")
+
+    assert first_refresh.status_code == 200
+    assert first_refresh.json()["refreshed_count"] == 1
+    assert first_refresh.json()["skipped_count"] == 0
+    assert first_refresh.json()["holdings"][0]["market_price"] == 132.45
+    assert second_refresh.status_code == 200
+    assert second_refresh.json()["refreshed_count"] == 0
+    assert second_refresh.json()["skipped_count"] == 1
+    assert forced_refresh.status_code == 200
+    assert forced_refresh.json()["refreshed_count"] == 1
+    assert forced_refresh.json()["holdings"][0]["market_price"] == 135.25
+    assert quote_service.quote_calls == ["VFV.TO", "VFV.TO"]
+
+
 def test_portfolio_snapshot_uses_investment_account_balances_without_holdings():
     client = make_client()
     client.post(

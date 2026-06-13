@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import React from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { InvestmentsView } from "./investments-view";
 import * as api from "@/lib/api";
@@ -12,7 +12,10 @@ vi.mock("@/lib/api", async () => {
     ...actual,
     createHolding: vi.fn(),
     updateHolding: vi.fn(),
-    deleteHolding: vi.fn()
+    deleteHolding: vi.fn(),
+    getQuote: vi.fn(),
+    refreshQuotes: vi.fn(),
+    searchSecurities: vi.fn()
   };
 });
 
@@ -34,10 +37,66 @@ const portfolio: PortfolioSnapshot = {
 };
 
 describe("InvestmentsView", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
-    vi.mocked(api.createHolding).mockResolvedValue({ ...holdings[0], id: "cash-to" });
+    vi.clearAllMocks();
+    vi.mocked(api.createHolding).mockImplementation(async (input) => ({
+      id: input.symbol.toLowerCase().replaceAll(".", "-"),
+      user_id: "local-user",
+      account_name: accounts.find((account) => account.id === input.account_id)?.name ?? "TFSA",
+      source: "manual",
+      ...input,
+      market_price: input.market_price ?? 0
+    }));
     vi.mocked(api.updateHolding).mockResolvedValue({ ...holdings[0], quantity: 12 });
     vi.mocked(api.deleteHolding).mockResolvedValue({ deleted_holding_id: "vfv" });
+    vi.mocked(api.getQuote).mockResolvedValue({
+      symbol: "MU",
+      name: "Micron Technology, Inc.",
+      price: 136.4,
+      currency: "USD",
+      provider: "test",
+      as_of: "2026-06-12T13:00:00Z"
+    });
+    vi.mocked(api.searchSecurities).mockResolvedValue([
+      {
+        symbol: "MU",
+        name: "Micron Technology, Inc.",
+        quote_type: "EQUITY",
+        exchange: "NASDAQ",
+        currency: "USD",
+        price: 136.4,
+        provider: "test",
+        as_of: "2026-06-12T13:00:00Z"
+      },
+      {
+        symbol: "MUU.TO",
+        name: "Mackenzie US Equity Index ETF CAD Hedged",
+        quote_type: "ETF",
+        exchange: "Toronto",
+        currency: "CAD",
+        price: 42.5,
+        provider: "test",
+        as_of: "2026-06-12T13:00:00Z"
+      }
+    ]);
+    vi.mocked(api.refreshQuotes).mockResolvedValue({
+      refreshed_count: 1,
+      skipped_count: 0,
+      holdings,
+      quotes: [{
+        symbol: "VFV.TO",
+        name: "Vanguard S&P 500 ETF",
+        price: 125,
+        currency: "CAD",
+        provider: "test",
+        as_of: "2026-06-12T13:00:00Z"
+      }],
+      message: "Refreshed 1 symbols; skipped 0 fresh cached symbols."
+    });
   });
 
   it("renders portfolio value, allocation, account grouping, and holding management actions", async () => {
@@ -80,7 +139,148 @@ describe("InvestmentsView", () => {
     await waitFor(() => expect(api.deleteHolding).toHaveBeenCalledWith("vfv"));
   });
 
+  it("searches and selects securities while adding a holding", async () => {
+    render(<InvestmentsView accounts={accounts} initialHoldings={[]} initialPortfolio={{ total_value: 0, total_cost: 0, unrealized_gain: 0, unrealized_gain_pct: 0, allocation: [], accounts: [] }} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Add holding" }));
+    const dialog = screen.getByRole("dialog", { name: "Add holding" });
+    fireEvent.change(within(dialog).getByLabelText("Symbol"), { target: { value: "m" } });
+
+    await waitFor(() => expect(api.searchSecurities).toHaveBeenCalledWith("M"));
+    const micronOption = await within(dialog).findByRole("option", { name: "MU Micron Technology, Inc. EQUITY NASDAQ $136.40" });
+    expect(within(dialog).getByText("Results")).toBeInTheDocument();
+    expect(micronOption).toHaveClass("security-search-result-row");
+    expect(micronOption.querySelector(".security-search-avatar")).toHaveTextContent("MU");
+    expect(micronOption.querySelector(".security-search-symbol")).toHaveTextContent("MU");
+    expect(within(micronOption).getByText("Micron Technology, Inc.")).toHaveClass("security-search-name");
+    expect(within(micronOption).getByText("Nasdaq")).toHaveClass("security-search-exchange");
+    const hedgedOption = await within(dialog).findByRole("option", { name: "MUU.TO Mackenzie US Equity Index ETF CAD Hedged ETF Toronto $42.50" });
+    expect(hedgedOption.querySelector(".security-search-avatar")).toHaveTextContent("MUU");
+    fireEvent.click(micronOption);
+    expect(within(dialog).getByLabelText("Symbol")).toHaveValue("MU");
+    expect(within(dialog).getByLabelText("Name")).toHaveValue("Micron Technology, Inc.");
+    expect(within(dialog).queryByRole("button", { name: "Refresh price" })).not.toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText("Quantity"), { target: { value: "3" } });
+    fireEvent.change(within(dialog).getByLabelText("Average cost"), { target: { value: "120" } });
+    expect(within(dialog).getByText("$409.20")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save holding" }));
+
+    await waitFor(() => expect(api.createHolding).toHaveBeenCalledWith({
+      account_id: "tfsa",
+      symbol: "MU",
+      name: "Micron Technology, Inc.",
+      quantity: 3,
+      average_cost: 120,
+      market_price: 136.4,
+      currency: "USD"
+    }));
+  });
+
+  it("uses the server-calculated quote when saving without refreshing first", async () => {
+    vi.mocked(api.createHolding).mockResolvedValue({
+      id: "cash-to",
+      user_id: "local-user",
+      account_id: "tfsa",
+      account_name: "TFSA",
+      symbol: "CASH.TO",
+      name: "Global X High Interest Savings ETF",
+      quantity: 5,
+      average_cost: 50,
+      market_price: 50.2,
+      currency: "CAD",
+      source: "manual"
+    });
+    render(<InvestmentsView accounts={accounts} initialHoldings={[]} initialPortfolio={{ total_value: 0, total_cost: 0, unrealized_gain: 0, unrealized_gain_pct: 0, allocation: [], accounts: [] }} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Add holding" }));
+    const dialog = screen.getByRole("dialog", { name: "Add holding" });
+    fireEvent.change(within(dialog).getByLabelText("Symbol"), { target: { value: "cash.to" } });
+    fireEvent.change(within(dialog).getByLabelText("Quantity"), { target: { value: "5" } });
+    fireEvent.change(within(dialog).getByLabelText("Average cost"), { target: { value: "50" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save holding" }));
+
+    await waitFor(() => expect(api.createHolding).toHaveBeenCalledWith(expect.objectContaining({
+      symbol: "CASH.TO",
+      quantity: 5,
+      market_price: undefined
+    })));
+    await waitFor(() => expect(screen.getAllByText("$251.00").length).toBeGreaterThan(0));
+    expect(screen.getByText("Global X High Interest Savings ETF")).toBeInTheDocument();
+  });
+
+  it("fetches a quote after selecting a search result without an embedded price", async () => {
+    vi.mocked(api.searchSecurities).mockResolvedValue([
+      {
+        symbol: "MU",
+        name: "Micron Technology, Inc.",
+        quote_type: "EQUITY",
+        exchange: "NASDAQ",
+        currency: "USD",
+        price: null,
+        provider: "test",
+        as_of: null
+      }
+    ]);
+
+    render(<InvestmentsView accounts={accounts} initialHoldings={[]} initialPortfolio={{ total_value: 0, total_cost: 0, unrealized_gain: 0, unrealized_gain_pct: 0, allocation: [], accounts: [] }} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Add holding" }));
+    const dialog = screen.getByRole("dialog", { name: "Add holding" });
+    fireEvent.change(within(dialog).getByLabelText("Symbol"), { target: { value: "mu" } });
+
+    fireEvent.click(await within(dialog).findByRole("option", { name: "MU Micron Technology, Inc. EQUITY NASDAQ" }));
+
+    await waitFor(() => expect(api.getQuote).toHaveBeenCalledWith("MU"));
+    await waitFor(() => expect(within(dialog).getByLabelText("Market price")).toHaveValue(136.4));
+    fireEvent.change(within(dialog).getByLabelText("Quantity"), { target: { value: "3" } });
+    expect(within(dialog).getByText("$409.20")).toBeInTheDocument();
+  });
+
+  it("refreshes holding prices on load, on demand, and every fifteen minutes", async () => {
+    vi.useFakeTimers();
+    vi.mocked(api.refreshQuotes).mockResolvedValue({
+      refreshed_count: 1,
+      skipped_count: 0,
+      holdings: [{ ...holdings[0], market_price: 130 }],
+      quotes: [{
+        symbol: "VFV.TO",
+        name: "Vanguard S&P 500 ETF",
+        price: 130,
+        currency: "CAD",
+        provider: "test",
+        as_of: "2026-06-12T13:15:00Z"
+      }],
+      message: "Refreshed 1 symbols; skipped 0 fresh cached symbols."
+    });
+
+    render(<InvestmentsView accounts={accounts} initialHoldings={holdings} initialPortfolio={portfolio} />);
+
+    expect(api.refreshQuotes).toHaveBeenCalledWith(false);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.getByText("Prices refreshed 2026-06-12")).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Refresh prices" }));
+      await Promise.resolve();
+    });
+    expect(api.refreshQuotes).toHaveBeenCalledWith(true);
+    await act(async () => {
+      vi.advanceTimersByTime(15 * 60 * 1000);
+      await Promise.resolve();
+    });
+    expect(api.refreshQuotes).toHaveBeenCalledTimes(3);
+  });
+
   it("includes synced SimpleFIN investment account balances when holdings are empty", () => {
+    vi.mocked(api.refreshQuotes).mockResolvedValue({
+      refreshed_count: 0,
+      skipped_count: 0,
+      holdings: [],
+      quotes: [],
+      message: "Refreshed 0 symbols; skipped 0 fresh cached symbols."
+    });
+
     render(
       <InvestmentsView
         accounts={[

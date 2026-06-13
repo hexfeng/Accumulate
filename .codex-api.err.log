@@ -1,4 +1,6 @@
-INFO:     Started server process [28640]
+INFO:     Started server process [3260]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://127.0.0.1:8001 (Press CTRL+C to quit)
+HTTP Error 404: {"quoteSummary":{"result":null,"error":{"code":"Not Found","description":"Quote not found for symbol: 1212"}}}
+$1212: possibly delisted; no price data found  (period=5d) (Yahoo error = "No data found, symbol may be delisted")

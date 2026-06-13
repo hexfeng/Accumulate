@@ -7,12 +7,13 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from app.integrations.market_data import MarketDataError, YahooFinanceQuoteService
 from app.integrations.simplefin import SimpleFinService
 from app.domain.analytics import build_monthly_summary
 from app.domain.forecast import build_cashflow_forecast
 from app.domain.net_worth import build_net_worth_history
 from app.domain.recurring import detect_recurring_items
-from app.domain.schemas import Account, AccountCreateRequest, AccountDeleteResponse, AccountUpdateRequest, BudgetSettings, CsvTransactionRow, DashboardSnapshot, Holding, HoldingDeleteResponse, HoldingRequest, NetWorthHistory, PortfolioSnapshot, SimpleFinConnectRequest, SimpleFinStatus, StatementImportResponse, Transaction
+from app.domain.schemas import Account, AccountCreateRequest, AccountDeleteResponse, AccountUpdateRequest, BudgetSettings, CsvTransactionRow, DashboardSnapshot, Holding, HoldingDeleteResponse, HoldingRequest, MarketQuote, NetWorthHistory, PortfolioSnapshot, QuoteRefreshResponse, SecuritySearchResult, SimpleFinConnectRequest, SimpleFinStatus, StatementImportResponse, Transaction
 from app.domain.statement_import import extract_statement_text, parse_statement_text
 from app.db_store import DatabaseStore
 from app.store import LocalStore, AccountConflictError, AccountNotFoundError
@@ -35,7 +36,11 @@ class TransactionPatchRequest(BaseModel):
 NetWorthRange = Literal["1D", "1W", "1M", "3M", "6M", "YTD", "1Y", "ALL"]
 
 
-def create_app(store: LocalStore | DatabaseStore | None = None, simplefin_service: SimpleFinService | None = None) -> FastAPI:
+def create_app(
+    store: LocalStore | DatabaseStore | None = None,
+    simplefin_service: SimpleFinService | None = None,
+    quote_service: YahooFinanceQuoteService | None = None,
+) -> FastAPI:
     app = FastAPI(title="FinSight Local API", version="0.1.0")
     app.add_middleware(
         CORSMiddleware,
@@ -46,6 +51,7 @@ def create_app(store: LocalStore | DatabaseStore | None = None, simplefin_servic
     )
     app.state.store = store or _build_default_store()
     app.state.simplefin_service = simplefin_service or _build_default_simplefin_service()
+    app.state.quote_service = quote_service or YahooFinanceQuoteService()
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
@@ -100,36 +106,88 @@ def create_app(store: LocalStore | DatabaseStore | None = None, simplefin_servic
     def list_holdings() -> list[Holding]:
         return app.state.store.list_holdings()
 
+    @app.get("/api/securities/search", response_model=list[SecuritySearchResult])
+    def search_securities(q: str, limit: int = 10) -> list[SecuritySearchResult]:
+        if not q.strip():
+            return []
+        try:
+            return [SecuritySearchResult.model_validate(result) for result in app.state.quote_service.search(q, max(1, min(limit, 12)))]
+        except MarketDataError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+
+    @app.post("/api/quotes/refresh", response_model=QuoteRefreshResponse)
+    def refresh_quotes(force: bool = False) -> QuoteRefreshResponse:
+        refreshed_count = 0
+        skipped_count = 0
+        quotes: list[MarketQuote] = []
+        symbols = sorted({holding.symbol.strip().upper() for holding in app.state.store.list_holdings() if holding.symbol.strip()})
+        for symbol in symbols:
+            cached_quote = app.state.store.get_cached_quote(symbol)
+            if not force and cached_quote is not None and app.state.store.is_cached_quote_fresh(symbol):
+                skipped_count += 1
+                quotes.append(cached_quote)
+                continue
+            try:
+                quote = MarketQuote.model_validate(app.state.quote_service.get_quote(symbol))
+            except MarketDataError as error:
+                raise HTTPException(status_code=422, detail=str(error)) from error
+            saved_quote = app.state.store.save_market_quote(quote)
+            app.state.store.update_holdings_market_price(saved_quote)
+            refreshed_count += 1
+            quotes.append(saved_quote)
+        holdings = app.state.store.list_holdings()
+        return QuoteRefreshResponse(
+            refreshed_count=refreshed_count,
+            skipped_count=skipped_count,
+            holdings=holdings,
+            quotes=quotes,
+            message=f"Refreshed {refreshed_count} symbols; skipped {skipped_count} fresh cached symbols.",
+        )
+
+    @app.get("/api/quotes/{symbol}", response_model=MarketQuote)
+    def get_quote(symbol: str) -> MarketQuote:
+        try:
+            quote = MarketQuote.model_validate(app.state.quote_service.get_quote(symbol))
+            return app.state.store.save_market_quote(quote)
+        except MarketDataError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+
     @app.post("/api/holdings", response_model=Holding)
     def create_holding(request: HoldingRequest) -> Holding:
         try:
+            holding_input = _resolve_holding_quote(request, app.state.quote_service, app.state.store)
             return app.state.store.create_holding(
-                account_id=request.account_id,
-                symbol=request.symbol,
-                name=request.name,
-                quantity=request.quantity,
-                average_cost=request.average_cost,
-                market_price=request.market_price,
-                currency=request.currency,
+                account_id=holding_input.account_id,
+                symbol=holding_input.symbol,
+                name=holding_input.name,
+                quantity=holding_input.quantity,
+                average_cost=holding_input.average_cost,
+                market_price=holding_input.market_price or 0,
+                currency=holding_input.currency,
             )
         except AccountNotFoundError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
+        except MarketDataError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
 
     @app.patch("/api/holdings/{holding_id}", response_model=Holding)
     def update_holding(holding_id: str, request: HoldingRequest) -> Holding:
         try:
+            holding_input = _resolve_holding_quote(request, app.state.quote_service, app.state.store)
             return app.state.store.update_holding(
                 holding_id,
-                account_id=request.account_id,
-                symbol=request.symbol,
-                name=request.name,
-                quantity=request.quantity,
-                average_cost=request.average_cost,
-                market_price=request.market_price,
-                currency=request.currency,
+                account_id=holding_input.account_id,
+                symbol=holding_input.symbol,
+                name=holding_input.name,
+                quantity=holding_input.quantity,
+                average_cost=holding_input.average_cost,
+                market_price=holding_input.market_price or 0,
+                currency=holding_input.currency,
             )
         except AccountNotFoundError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
+        except MarketDataError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
 
     @app.delete("/api/holdings/{holding_id}", response_model=HoldingDeleteResponse)
     def delete_holding(holding_id: str) -> HoldingDeleteResponse:
@@ -253,6 +311,21 @@ def _build_default_store() -> LocalStore | DatabaseStore:
 
 def _build_default_simplefin_service() -> SimpleFinService:
     return SimpleFinService()
+
+
+def _resolve_holding_quote(request: HoldingRequest, quote_service: YahooFinanceQuoteService, store: LocalStore | DatabaseStore) -> HoldingRequest:
+    symbol = request.symbol.strip().upper()
+    name = request.name.strip()
+    market_price = request.market_price
+    currency = request.currency
+    if market_price is None or market_price <= 0:
+        quote = MarketQuote.model_validate(quote_service.get_quote(symbol))
+        store.save_market_quote(quote)
+        market_price = quote.price
+        currency = quote.currency or currency
+        if not name:
+            name = quote.name
+    return request.model_copy(update={"symbol": symbol, "name": name or symbol, "market_price": market_price, "currency": currency})
 
 
 def _parse_month(month: str | None) -> date | None:

@@ -15,7 +15,7 @@ FinSight is a local-first personal finance workspace for bank-account tracking, 
 - Cash page with monthly in-flow/out-flow KPIs, available cash, net position, 30/60/90 day forecast, cash account distribution, and matching compact account rows.
 - Recap page with period support, income/spending/net cashflow, savings rate, recurring costs, notable categories, top merchants, sparse-data states, and Transactions drill-down links.
 - Spending page expansion with budget threshold watchlists, category/merchant drill-downs, recurring cost drill-downs, and period-preserving Transactions links.
-- Investments MVP with manual holdings CRUD, portfolio value, cost basis, unrealized gain, allocation, and account grouping.
+- Investments MVP with manual holdings CRUD, Yahoo Finance-backed security search, cached portfolio price refresh, portfolio value, cost basis, unrealized gain, allocation, and account grouping.
 - Settings MVP with budget, category budget, forecast assumption, currency/timezone, AI privacy, and local-first controls connected to the settings API.
 - Demo seed endpoint for local development.
 
@@ -65,6 +65,14 @@ Completed:
 - Imported credit-card statement expenses are persisted as statement transactions and included in monthly spending analytics when they are not payments or transfers.
 - Transactions now defaults each account to its latest month and the five newest rows, with dialogs for all transactions in that month and history by month.
 
+2026-06-12 Investment quote refresh:
+
+- Added `GET /api/quotes/{symbol}` with a replaceable Yahoo Finance quote provider using `yfinance`.
+- Added `GET /api/securities/search?q=...` for Add holding autocomplete, filtered to stock/ETF-style quote results, ranked by exact/prefix/contains matches, and backed by a Nasdaq Trader symbol-directory fallback when Yahoo search is sparse.
+- Added `POST /api/quotes/refresh?force=...` to refresh all manual holding prices, persist latest quotes locally, and skip cached prices that were fetched within the last 15 minutes.
+- Holdings can now be saved with symbol, quantity, and cost basis while the API fills missing market price/name from the latest quote.
+- `/investments` automatically refreshes holding prices when the page opens, refreshes every 15 minutes while open, and includes a page-level `Refresh prices` action; Add holding now uses a compact one-line searchable symbol picker instead of a per-holding refresh button.
+
 ## Planned frontend navigation
 
 The current web app implements Dashboard, Cash, Spending, Investments, Recap, Transactions, Accounts, and Settings as MVP pages.
@@ -72,7 +80,7 @@ The current web app implements Dashboard, Cash, Spending, Investments, Recap, Tr
 - Dashboard (`/dashboard`) for the financial command center and cross-page entry points.
 - Cash (`/cash`) for monthly inflow/outflow, available cash, net short-term position, cash account distribution, and 30/60/90 day cashflow risk.
 - Spending (`/spending`) for income, expenses, budget usage, merchant/category insights, and recurring costs.
-- Investments (`/investments`) for manual holdings, portfolio value, cost basis, unrealized gains, allocation, and account grouping.
+- Investments (`/investments`) for manual holdings, searchable stock/ETF selection, cached quote-backed market prices, portfolio value, cost basis, unrealized gains, allocation, and account grouping.
 - Recap (`/recap`) for period income, spending, net cashflow, savings rate, recurring costs, notable categories, and merchant summaries.
 - Transactions (`/transactions`) for transaction drill-down, review, categorization, local rule creation, compact latest-month account previews, and monthly history dialogs.
 - Accounts (`/accounts`) for SimpleFIN Bridge status, cash account summaries, credit-card obligations, manual data entry, multi-file historical statement import, compact account rows, account detail/update modals, and sync health.

@@ -67,18 +67,46 @@ class Holding(BaseModel):
     source: str = "manual"
 
 
+class MarketQuote(BaseModel):
+    symbol: str
+    name: str
+    price: float
+    currency: str = "CAD"
+    provider: str
+    as_of: str
+
+
+class SecuritySearchResult(BaseModel):
+    symbol: str
+    name: str
+    quote_type: str
+    exchange: str | None = None
+    currency: str = "CAD"
+    price: float | None = None
+    provider: str
+    as_of: str | None = None
+
+
 class HoldingRequest(BaseModel):
     account_id: str
     symbol: str
-    name: str
+    name: str = ""
     quantity: float
     average_cost: float
-    market_price: float
+    market_price: float | None = None
     currency: str = "CAD"
 
 
 class HoldingDeleteResponse(BaseModel):
     deleted_holding_id: str
+
+
+class QuoteRefreshResponse(BaseModel):
+    refreshed_count: int
+    skipped_count: int
+    holdings: list[Holding]
+    quotes: list[MarketQuote]
+    message: str
 
 
 class CsvTransactionRow(BaseModel):
