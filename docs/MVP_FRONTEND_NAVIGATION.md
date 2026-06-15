@@ -300,12 +300,13 @@ Frontend completed:
 4. `/investments` now includes configurable market watchlist cards under the summary metrics, backed by the existing quote provider and persisted watchlist symbols.
 5. Screenshot/PDF holdings import remains a future preview-and-confirm import flow.
 
-Verification completed for commit `74da22d`:
+Verification completed for the 2026-06-15 Dashboard investments/watchlist slice through commit `f2e3bec`:
 
 ```powershell
 npm run test:api
 npm run test:web
 npm run build:web
+git diff --check
 ```
 
 ## 9. Remaining task plan

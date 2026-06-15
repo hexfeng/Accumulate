@@ -137,4 +137,4 @@ npm run build:web
 - The backend defaults to an in-process local store when `FINSIGHT_DATABASE_URL` is unset. Set `FINSIGHT_DATABASE_URL=postgresql+psycopg://finsight:finsight@localhost:5432/finsight` to use the SQLAlchemy/PostgreSQL store.
 - `apps/api/schema.sql` documents the Postgres-compatible schema used by the persistence layer.
 - SimpleFIN credentials are local-only. By default the access URL is stored in `~/.finsight/simplefin_credentials.json`; set `FINSIGHT_SIMPLEFIN_CREDENTIAL_PATH` to choose a different local secret file.
-- External market-data valuation such as yfinance, AI insight generation, Redis workers, KMS, object storage, and SaaS auth are intentionally deferred.
+- AI insight generation, Redis workers, KMS, object storage, SaaS auth, and richer external market-data features beyond the current yfinance-backed quotes are intentionally deferred.
