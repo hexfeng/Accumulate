@@ -120,7 +120,7 @@ describe("DashboardView", () => {
   });
 
   it("renders holdings-aware net worth, real allocation, and investment KPI", () => {
-    render(
+    const { container } = render(
       <DashboardView
         initialNetWorthHistory={{ ...demoNetWorthHistoryByRange["1M"], current_value: 17500 }}
         snapshot={{
@@ -150,7 +150,29 @@ describe("DashboardView", () => {
     expect(screen.getByText("Asset mix")).toBeInTheDocument();
     expect(screen.queryByText("Mock asset mix")).not.toBeInTheDocument();
     expect(screen.getByRole("img", { name: "VFV.TO 69%, RRSP 23%, Cash 11%, Visa -3%" })).toBeInTheDocument();
+    const segmentWidths = Array.from(container.querySelectorAll<HTMLElement>(".asset-segment"))
+      .map((segment) => segment.style.width)
+      .filter(Boolean);
+    expect(segmentWidths.every((width) => !width.startsWith("-"))).toBe(true);
+    expect(segmentWidths).toEqual(["66.99%", "22.33%", "10.68%"]);
     expect(screen.getByText("$12,000.00")).toBeInTheDocument();
     expect(screen.getByText("Portfolio value")).toBeInTheDocument();
+  });
+
+  it("keeps zero net worth as a valid displayed value", () => {
+    render(
+      <DashboardView
+        initialNetWorthHistory={{ ...demoNetWorthHistoryByRange["1M"], current_value: 0, points: [] }}
+        snapshot={{
+          ...demoDashboard,
+          accounts: [
+            { id: "cash", user_id: "local-user", name: "Cash", type: "cash", balance: 1000, currency: "CAD", source: "manual" }
+          ],
+          net_worth_total: 5000
+        }}
+      />
+    );
+
+    expect(screen.getByRole("link", { name: "Open investments from total net worth" })).toHaveTextContent("$0.00");
   });
 });

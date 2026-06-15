@@ -35,12 +35,16 @@ const MOCK_ASSET_ALLOCATION: AssetAllocationItem[] = [
   { label: "Cash", percent: 25, tone: "cash", is_mock: true }
 ];
 
+type AllocationDisplaySegment = Pick<AssetAllocationItem, "label" | "tone"> & {
+  displayPercent: number;
+};
+
 export function DashboardView({ initialNetWorthHistory, snapshot }: Props) {
   const cashPosition = snapshot.accounts
     .filter((account) => ["checking", "savings", "cash"].includes(account.type))
     .reduce((sum, account) => sum + account.balance, 0);
   const accountsOnlyNetWorth = snapshot.accounts.reduce((sum, account) => sum + account.balance, 0);
-  const totalNetWorth = initialNetWorthHistory.current_value || snapshot.net_worth_total || accountsOnlyNetWorth;
+  const totalNetWorth = initialNetWorthHistory.current_value ?? snapshot.net_worth_total ?? accountsOnlyNetWorth;
   const investmentValue =
     snapshot.investment_summary?.total_value ??
     snapshot.accounts
@@ -55,6 +59,7 @@ export function DashboardView({ initialNetWorthHistory, snapshot }: Props) {
   const currentPeriodShort = formatShortPeriod(snapshot.monthly_summary.month);
   const realAllocation = snapshot.asset_allocation?.filter((asset) => asset.value == null || asset.value !== 0) ?? [];
   const assetAllocation = normalizeAssetAllocation(realAllocation.length ? realAllocation : MOCK_ASSET_ALLOCATION);
+  const allocationDisplaySegments = buildAllocationDisplaySegments(assetAllocation);
   const hasMockAllocation = assetAllocation.some((asset) => asset.is_mock);
   const allocationLabel = assetAllocation.map((asset) => `${asset.label} ${asset.percent}%`).join(", ");
   const hasSimpleFinAccounts = snapshot.accounts.some((account) => account.source === "simplefin");
@@ -104,11 +109,11 @@ export function DashboardView({ initialNetWorthHistory, snapshot }: Props) {
             <small>{hasMockAllocation ? "Placeholder until investments are added" : "Based on connected holdings"}</small>
           </div>
           <div className="asset-distribution-track" role="img" aria-label={allocationLabel}>
-            {assetAllocation.map((asset) => (
+            {allocationDisplaySegments.map((asset) => (
               <span
                 className={`asset-segment asset-${asset.tone}`}
                 key={asset.label}
-                style={{ width: `${asset.percent}%` }}
+                style={{ width: `${asset.displayPercent}%` }}
               />
             ))}
           </div>
@@ -345,5 +350,18 @@ function normalizeAssetAllocation(items: AssetAllocationItem[]) {
   return items.map((item) => ({
     ...item,
     percent: Math.round(item.percent)
+  }));
+}
+
+function buildAllocationDisplaySegments(items: AssetAllocationItem[]): AllocationDisplaySegment[] {
+  const positiveItems = items.filter((item) => item.percent > 0);
+  const positiveTotal = positiveItems.reduce((sum, item) => sum + item.percent, 0);
+  if (positiveTotal <= 0) {
+    return [];
+  }
+  return positiveItems.map((item) => ({
+    label: item.label,
+    tone: item.tone,
+    displayPercent: Math.round((item.percent / positiveTotal) * 10000) / 100
   }));
 }
