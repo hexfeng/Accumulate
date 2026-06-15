@@ -583,6 +583,8 @@ def test_watchlist_returns_default_symbols_with_quotes_and_symbol_errors():
                 "name": f"{symbol.strip().upper()} Index",
                 "price": 1000,
                 "currency": "USD",
+                "change_amount": 12.34,
+                "change_pct": 1.25,
                 "provider": "test",
                 "as_of": "2026-06-12T13:00:00Z",
             }
@@ -595,6 +597,10 @@ def test_watchlist_returns_default_symbols_with_quotes_and_symbol_errors():
     data = response.json()
     assert [item["symbol"] for item in data["items"]] == ["^DJI", "^GSPC", "^IXIC", "^RUT", "^GSPTSE"]
     assert data["items"][0]["price"] == 1000
+    assert data["items"][0]["change_amount"] == 12.34
+    assert data["items"][0]["change_pct"] == 1.25
+    assert data["items"][0]["provider"] == "test"
+    assert data["items"][0]["as_of"] == "2026-06-12T13:00:00Z"
     assert data["items"][3]["price"] is None
     assert data["items"][3]["error"] == "Quote unavailable"
 

@@ -370,8 +370,8 @@ def _watchlist_item(symbol: str, quote_service: YahooFinanceQuoteService, store:
             name=saved.name,
             price=saved.price,
             currency=saved.currency,
-            change_amount=None,
-            change_pct=None,
+            change_amount=saved.change_amount,
+            change_pct=saved.change_pct,
             provider=saved.provider,
             as_of=saved.as_of,
         )

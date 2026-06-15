@@ -72,6 +72,8 @@ class MarketQuote(BaseModel):
     name: str
     price: float
     currency: str = "CAD"
+    change_amount: float | None = None
+    change_pct: float | None = None
     provider: str
     as_of: str
 

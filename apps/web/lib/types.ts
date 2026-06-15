@@ -98,6 +98,8 @@ export type MarketQuote = {
   name: string;
   price: number;
   currency: string;
+  change_amount?: number | null;
+  change_pct?: number | null;
   provider: string;
   as_of: string;
 };

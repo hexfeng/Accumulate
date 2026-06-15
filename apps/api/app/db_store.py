@@ -120,6 +120,8 @@ market_quotes = Table(
     Column("name", String, nullable=False),
     Column("price", Float, nullable=False),
     Column("currency", String, nullable=False, default="CAD"),
+    Column("change_amount", Float),
+    Column("change_pct", Float),
     Column("provider", String, nullable=False),
     Column("as_of", String, nullable=False),
     Column("fetched_at", String, nullable=False),
@@ -166,6 +168,10 @@ class DatabaseStore:
                 connection.execute(text("ALTER TABLE transactions ADD COLUMN external_id VARCHAR"))
             if "market_quotes" in table_names and "fetched_at" not in quote_columns:
                 connection.execute(text("ALTER TABLE market_quotes ADD COLUMN fetched_at VARCHAR"))
+            if "market_quotes" in table_names and "change_amount" not in quote_columns:
+                connection.execute(text("ALTER TABLE market_quotes ADD COLUMN change_amount FLOAT"))
+            if "market_quotes" in table_names and "change_pct" not in quote_columns:
+                connection.execute(text("ALTER TABLE market_quotes ADD COLUMN change_pct FLOAT"))
 
     def _ensure_settings(self) -> None:
         with self.engine.begin() as connection:

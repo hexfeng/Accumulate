@@ -5243,6 +5243,12 @@ body {
   color: var(--coral);
 }
 
+.watchlist-card > em {
+  color: var(--muted);
+  font-size: var(--fs-small);
+  font-style: normal;
+}
+
 .watchlist-remove {
   align-items: center;
   background: var(--surface-strong);

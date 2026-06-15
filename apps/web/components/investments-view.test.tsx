@@ -360,6 +360,7 @@ describe("InvestmentsView", () => {
     expect(screen.getByText("S&P 500")).toBeInTheDocument();
     expect(screen.getByText("7,431.46")).toBeInTheDocument();
     expect(screen.getByText((_content, element) => element?.textContent === "+37.16 +0.50%")).toBeInTheDocument();
+    expect(screen.getByText("test · Jun 12, 2026, 9:00 AM")).toBeInTheDocument();
     expect(screen.getByText("Nasdaq")).toBeInTheDocument();
     expect(screen.getByText("Quote unavailable")).toBeInTheDocument();
   });

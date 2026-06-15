@@ -334,8 +334,9 @@ function WatchlistPanel({
 }
 
 function WatchlistCard({ isSaving, item, onRemove }: { isSaving: boolean; item: WatchlistItem; onRemove: () => void }) {
-  const change = item.change_pct ?? 0;
-  const isPositive = change >= 0;
+  const change = item.change_pct;
+  const isPositive = (change ?? 0) >= 0;
+  const meta = formatWatchlistMeta(item);
   return (
     <div className="watchlist-card">
       <button type="button" className="watchlist-remove" onClick={onRemove} aria-label={`Remove ${item.symbol}`} disabled={isSaving}>x</button>
@@ -345,9 +346,14 @@ function WatchlistCard({ isSaving, item, onRemove }: { isSaving: boolean; item: 
       ) : (
         <>
           <strong>{formatMarketNumber(item.price ?? 0)}</strong>
-          <small className={isPositive ? "positive" : "negative"}>
-            {formatChangeAmount(item.change_amount)} {formatSignedPercent(change)}
-          </small>
+          {change == null || item.change_amount == null ? (
+            <small>Change unavailable</small>
+          ) : (
+            <small className={isPositive ? "positive" : "negative"}>
+              {formatChangeAmount(item.change_amount)} {formatSignedPercent(change)}
+            </small>
+          )}
+          {meta ? <em>{meta}</em> : null}
           <div className={`watchlist-spark ${isPositive ? "positive" : "negative"}`} aria-hidden="true" />
         </>
       )}
@@ -555,6 +561,26 @@ function formatChangeAmount(value?: number | null) {
 function formatSignedPercent(value: number) {
   const sign = value >= 0 ? "+" : "";
   return `${sign}${value.toFixed(2)}%`;
+}
+
+function formatWatchlistMeta(item: WatchlistItem) {
+  const parts = [item.provider, formatWatchlistTime(item.as_of)].filter(Boolean);
+  return parts.join(" · ");
+}
+
+function formatWatchlistTime(value?: string | null) {
+  if (!value) {
+    return "";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return new Intl.DateTimeFormat("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "America/Toronto"
+  }).format(date);
 }
 
 function buildPortfolioSnapshot(holdings: Holding[], fallback: PortfolioSnapshot, investmentAccounts: Account[]): PortfolioSnapshot {

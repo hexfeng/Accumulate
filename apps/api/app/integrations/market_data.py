@@ -96,11 +96,22 @@ class YahooFinanceQuoteService:
 
         name = str(info.get("longName") or info.get("shortName") or normalized_symbol)
         currency = str(fast_info.get("currency") or info.get("currency") or "CAD").upper()
+        previous_close = _first_number(
+            fast_info,
+            "previous_close",
+            "previousClose",
+            "regular_market_previous_close",
+            "regularMarketPreviousClose",
+        )
+        change_amount = round(price - previous_close, 4) if previous_close and previous_close > 0 else None
+        change_pct = round((change_amount / previous_close) * 100, 4) if change_amount is not None and previous_close else None
         return MarketQuote(
             symbol=normalized_symbol,
             name=name,
             price=round(price, 4),
             currency=currency,
+            change_amount=change_amount,
+            change_pct=change_pct,
             provider=self.provider,
             as_of=datetime.now(UTC).isoformat(),
         )
