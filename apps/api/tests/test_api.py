@@ -213,6 +213,8 @@ def test_quote_endpoint_returns_latest_market_price():
         "name": "Vanguard S&P 500 Index ETF",
         "price": 132.45,
         "currency": "CAD",
+        "change_amount": None,
+        "change_pct": None,
         "provider": "test",
         "as_of": "2026-06-12T13:00:00Z",
     }
