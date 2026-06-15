@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from app.domain.categorization import DEFAULT_RULES, categorize_transaction
+from app.domain.categorization import DEFAULT_RULES, build_user_rule_pattern, categorize_transaction
 from app.domain.normalization import normalize_csv_transaction
 from app.domain.schemas import Account, AccountBalanceSnapshot, AssetAllocationItem, BudgetSettings, CategoryRule, CsvTransactionRow, Holding, MarketQuote, PortfolioAccountSummary, PortfolioSnapshot, Transaction
 from app.domain.transaction_classification import normalize_internal_flows
@@ -350,17 +350,21 @@ class LocalStore:
         )
         self.transactions[transaction_id] = updated
         if create_rule:
+            pattern = build_user_rule_pattern(transaction.merchant_raw, updated.merchant_normalized)
+            self.user_rules = [rule for rule in self.user_rules if rule.pattern != pattern or rule.user_id != LOCAL_USER_ID]
             self.user_rules.insert(
                 0,
                 CategoryRule(
                     id=f"rule_{uuid4().hex[:8]}",
                     user_id=LOCAL_USER_ID,
-                    pattern=transaction.merchant_raw.lower(),
+                    pattern=pattern,
                     merchant=updated.merchant_normalized or transaction.merchant_raw,
                     category=category,
                     priority=1,
                 ),
             )
+            self.reclassify_transactions()
+            return self.transactions[transaction_id]
         return updated
 
     def seed_demo(self) -> None:

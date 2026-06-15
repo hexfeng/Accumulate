@@ -1,4 +1,43 @@
+import re
+
 from app.domain.schemas import CategoryRule, Transaction
+
+
+LOCATION_TOKENS = {
+    "ajax",
+    "brampton",
+    "burlington",
+    "etobicoke",
+    "hamilton",
+    "markham",
+    "mississauga",
+    "newmarket",
+    "north",
+    "oakville",
+    "on",
+    "ontario",
+    "oshawa",
+    "pickering",
+    "richmond",
+    "scarborough",
+    "thornhill",
+    "toronto",
+    "unionville",
+    "vaughan",
+    "whitby",
+    "york",
+}
+
+MERCHANT_NOISE_TOKENS = {
+    "ca",
+    "card",
+    "debit",
+    "pos",
+    "purchase",
+    "store",
+    "s",
+    "visa",
+}
 
 
 DEFAULT_RULES: list[CategoryRule] = [
@@ -15,7 +54,35 @@ DEFAULT_RULES: list[CategoryRule] = [
 
 
 def _matches(pattern: str, text: str) -> bool:
-    return any(part.strip().lower() in text for part in pattern.split("|") if part.strip())
+    normalized_text = _normalize_for_match(text)
+    return any(_normalize_for_match(part) in normalized_text for part in pattern.split("|") if part.strip())
+
+
+def _normalize_for_match(value: str) -> str:
+    tokens = re.findall(r"[a-z0-9]+", value.lower())
+    return " ".join(
+        token
+        for token in tokens
+        if token != "s"
+        and token not in LOCATION_TOKENS
+        and not token.isdigit()
+    )
+
+
+def build_user_rule_pattern(merchant_raw: str, merchant_normalized: str | None = None) -> str:
+    source = merchant_normalized or merchant_raw
+    tokens = re.findall(r"[a-z0-9]+", source.lower())
+    core_tokens = [
+        token
+        for token in tokens
+        if token not in LOCATION_TOKENS
+        and token not in MERCHANT_NOISE_TOKENS
+        and not token.isdigit()
+        and not any(character.isdigit() for character in token)
+    ]
+    if not core_tokens and source != merchant_raw:
+        return build_user_rule_pattern(merchant_raw)
+    return " ".join(core_tokens[:3] or tokens[:3]).strip() or merchant_raw.lower()
 
 
 def categorize_transaction(transaction: Transaction, rules: list[CategoryRule] | None = None) -> Transaction:

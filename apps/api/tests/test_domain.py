@@ -58,6 +58,34 @@ def test_user_category_rule_overrides_global_rule():
     assert categorized.confidence == 0.95
 
 
+def test_user_category_rule_ignores_numbers_possessives_and_locations_for_merchant_variants():
+    rule = CategoryRule(
+        id="user_robs_nf",
+        user_id=USER_ID,
+        pattern="rob's nf #7076 unionville on",
+        merchant="Rob's NF",
+        category="Groceries",
+        priority=1,
+    )
+    transaction = Transaction(
+        id="txn_robs_nf_variant",
+        user_id=USER_ID,
+        account_id="acct_1",
+        account_name="CIBC Visa",
+        account_type="credit_card",
+        transaction_date=date(2026, 6, 12),
+        amount=-36.50,
+        currency="CAD",
+        merchant_raw="ROB'S NF #1234 TORONTO",
+        description_raw="ROB'S NF #1234 TORONTO",
+    )
+
+    categorized = categorize_transaction(transaction, [rule])
+
+    assert categorized.category == "Groceries"
+    assert categorized.merchant_normalized == "Rob's NF"
+
+
 def test_monthly_summary_excludes_income_transfers_and_excluded_transactions():
     transactions = [
         Transaction(
