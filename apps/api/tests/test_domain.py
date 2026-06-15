@@ -3,10 +3,11 @@ from datetime import date
 from app.domain.analytics import build_monthly_summary
 from app.domain.categorization import categorize_transaction
 from app.domain.forecast import build_cashflow_forecast
+from app.domain.holdings_aware_net_worth import build_holdings_aware_net_worth
 from app.domain.net_worth import build_net_worth_history
 from app.domain.normalization import normalize_csv_transaction
 from app.domain.recurring import detect_recurring_items
-from app.domain.schemas import Account, AccountBalanceSnapshot, BudgetSettings, CategoryRule, CsvTransactionRow, Transaction
+from app.domain.schemas import Account, AccountBalanceSnapshot, BudgetSettings, CategoryRule, CsvTransactionRow, Holding, Transaction
 from app.domain.transaction_classification import normalize_internal_flows
 
 
@@ -424,3 +425,52 @@ def test_net_worth_history_estimates_from_transactions_when_only_current_snapsho
     assert history.coverage_start == date(2026, 6, 2)
     assert history.coverage_end == date(2026, 6, 11)
     assert history.is_estimated is True
+
+
+def test_holdings_aware_net_worth_replaces_investment_balance_per_account():
+    accounts = [
+        Account(id="tfsa", user_id=USER_ID, name="TFSA", type="investment", balance=10000, currency="CAD"),
+        Account(id="rrsp", user_id=USER_ID, name="RRSP", type="investment", balance=4000, currency="CAD"),
+        Account(id="cash", user_id=USER_ID, name="Cash", type="checking", balance=2000, currency="CAD"),
+        Account(id="visa", user_id=USER_ID, name="Visa", type="credit_card", balance=-500, currency="CAD"),
+    ]
+    holdings = [
+        Holding(
+            id="vfv-to",
+            user_id=USER_ID,
+            account_id="tfsa",
+            account_name="TFSA",
+            symbol="VFV.TO",
+            name="Vanguard S&P 500 ETF",
+            quantity=80,
+            average_cost=100,
+            market_price=150,
+            currency="CAD",
+            source="manual",
+        )
+    ]
+
+    snapshot = build_holdings_aware_net_worth(accounts, holdings)
+
+    assert snapshot.total_value == 17500
+    assert snapshot.investment_value == 16000
+    assert snapshot.used_manual_holdings is True
+    assert snapshot.manual_holding_account_ids == ["tfsa"]
+    assert [(item.label, item.value, item.percent) for item in snapshot.asset_allocation] == [
+        ("VFV.TO", 12000, 68.57),
+        ("RRSP", 4000, 22.86),
+        ("Cash", 2000, 11.43),
+        ("Visa", -500, -2.86),
+    ]
+
+
+def test_net_worth_history_accepts_holdings_aware_current_value_override():
+    accounts = [
+        Account(id="tfsa", user_id=USER_ID, name="TFSA", type="investment", balance=10000, currency="CAD"),
+        Account(id="cash", user_id=USER_ID, name="Cash", type="checking", balance=2000, currency="CAD"),
+    ]
+
+    history = build_net_worth_history(accounts, "1M", as_of=date(2026, 6, 15), current_value_override=14000)
+
+    assert history.current_value == 14000
+    assert history.points[-1].value == 14000

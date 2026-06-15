@@ -241,8 +241,18 @@ class NetWorthHistory(BaseModel):
 
 class AssetAllocationItem(BaseModel):
     label: str
-    value: float
+    value: float = 0
     percent: float
+    tone: str = "stocks"
+    is_mock: bool = False
+
+
+class HoldingsAwareNetWorthSnapshot(BaseModel):
+    total_value: float
+    investment_value: float
+    asset_allocation: list[AssetAllocationItem]
+    used_manual_holdings: bool = False
+    manual_holding_account_ids: list[str] = Field(default_factory=list)
 
 
 class PortfolioAccountSummary(BaseModel):
@@ -266,3 +276,7 @@ class DashboardSnapshot(BaseModel):
     monthly_summary: MonthlySummary
     recurring_items: list[RecurringItem]
     forecast: CashflowForecast
+    asset_allocation: list[AssetAllocationItem] = Field(default_factory=list)
+    investment_summary: PortfolioSnapshot | None = None
+    net_worth_total: float = 0
+    net_worth_uses_manual_holdings: bool = False

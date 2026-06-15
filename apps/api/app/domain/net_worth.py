@@ -39,6 +39,7 @@ def build_net_worth_history(
     snapshots: list[AccountBalanceSnapshot] | None = None,
     transactions: list[Transaction] | None = None,
     as_of: date | None = None,
+    current_value_override: float | None = None,
 ) -> NetWorthHistory:
     if range_key not in NET_WORTH_RANGES:
         raise ValueError(f"Unsupported net worth range: {range_key}")
@@ -48,7 +49,9 @@ def build_net_worth_history(
         latest_snapshot_date = max(snapshot.snapshot_date for snapshot in snapshots)
         if latest_snapshot_date > as_of:
             as_of = latest_snapshot_date
-    current_value = _money(sum(account.balance for account in accounts))
+    current_value = _money(
+        current_value_override if current_value_override is not None else sum(account.balance for account in accounts)
+    )
     snapshot_points = _snapshot_points(snapshots or [], range_key, as_of)
     if len(snapshot_points) >= 2:
         if snapshot_points[-1].date != as_of or snapshot_points[-1].value != current_value:
