@@ -5,7 +5,7 @@ from typing import Any
 from sqlalchemy import JSON, Boolean, Column, Date, Float, MetaData, String, Table, create_engine, delete, inspect, insert, select, text, update
 from sqlalchemy.engine import Engine
 
-from app.domain.categorization import DEFAULT_RULES, categorize_transaction
+from app.domain.categorization import DEFAULT_RULES, build_user_rule_pattern, categorize_transaction
 from app.domain.normalization import normalize_csv_transaction
 from app.domain.schemas import Account, AccountBalanceSnapshot, BudgetSettings, CategoryRule, CsvTransactionRow, Holding, MarketQuote, PortfolioSnapshot, Transaction
 from app.domain.transaction_classification import normalize_internal_flows
@@ -611,6 +611,7 @@ class DatabaseStore:
         return len(normalized)
 
     def patch_transaction(self, transaction_id: str, category: str, merchant_normalized: str | None, create_rule: bool) -> Transaction:
+        should_reclassify = False
         with self.engine.begin() as connection:
             row = connection.execute(select(transactions).where(transactions.c.id == transaction_id)).mappings().one()
             merchant = merchant_normalized or row["merchant_normalized"] or row["merchant_raw"]
@@ -620,18 +621,32 @@ class DatabaseStore:
                 .values(category=category, merchant_normalized=merchant, confidence=1.0)
             )
             if create_rule:
+                pattern = build_user_rule_pattern(row["merchant_raw"], merchant)
+                rule_id = f"rule_{transaction_id[:12]}"
+                connection.execute(
+                    delete(category_rules).where(
+                        (category_rules.c.user_id == LOCAL_USER_ID)
+                        & (category_rules.c.pattern == pattern)
+                    )
+                )
+                connection.execute(delete(category_rules).where(category_rules.c.id == rule_id))
                 connection.execute(
                     insert(category_rules).values(
-                        id=f"rule_{transaction_id[:12]}",
+                        id=rule_id,
                         user_id=LOCAL_USER_ID,
-                        pattern=row["merchant_raw"].lower(),
+                        pattern=pattern,
                         merchant=merchant,
                         category=category,
                         subcategory=None,
                         priority=1,
                     )
                 )
+                should_reclassify = True
             updated = connection.execute(select(transactions).where(transactions.c.id == transaction_id)).mappings().one()
+        if should_reclassify:
+            self.reclassify_transactions()
+            with self.engine.begin() as connection:
+                updated = connection.execute(select(transactions).where(transactions.c.id == transaction_id)).mappings().one()
         return Transaction(**dict(updated))
 
     def seed_demo(self) -> None:

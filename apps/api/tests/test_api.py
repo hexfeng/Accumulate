@@ -336,8 +336,110 @@ def test_transaction_category_patch_creates_user_rule_for_future_matches():
     updated = patch_response.json()
     assert updated["category"] == "Dining"
     rules = client.get("/api/category-rules").json()
-    assert rules[0]["pattern"] == "local bakery toronto"
+    assert rules[0]["pattern"] == "local bakery"
     assert rules[0]["merchant"] == "Local Bakery"
+
+
+def test_transaction_category_patch_updates_related_merchant_history_across_accounts():
+    client = make_client()
+    client.post(
+        "/api/imports/csv",
+        json={
+            "rows": [
+                {
+                    "account_name": "American Express Cobalt Card",
+                    "account_type": "credit_card",
+                    "transaction_date": "2026-06-07",
+                    "description": "Petro-Canada 33370 Markham",
+                    "amount": "-75.00",
+                    "currency": "CAD",
+                },
+                {
+                    "account_name": "Rogers Red World Elite",
+                    "account_type": "credit_card",
+                    "transaction_date": "2026-06-06",
+                    "description": "PETRO CANADA 8842 TORONTO",
+                    "amount": "-64.12",
+                    "currency": "CAD",
+                },
+                {
+                    "account_name": "American Express Cobalt Card",
+                    "account_type": "credit_card",
+                    "transaction_date": "2026-06-05",
+                    "description": "Mcdonald'S #11787 Q04 Unionville",
+                    "amount": "-19.20",
+                    "currency": "CAD",
+                },
+                {
+                    "account_name": "CIBC Visa",
+                    "account_type": "credit_card",
+                    "transaction_date": "2026-06-04",
+                    "description": "MCDONALDS 4421 TORONTO",
+                    "amount": "-12.45",
+                    "currency": "CAD",
+                },
+                {
+                    "account_name": "American Express Cobalt Card",
+                    "account_type": "credit_card",
+                    "transaction_date": "2026-06-03",
+                    "description": "Rob'S Nf #7076 Unionville On",
+                    "amount": "-42.10",
+                    "currency": "CAD",
+                },
+                {
+                    "account_name": "Rogers Red World Elite",
+                    "account_type": "credit_card",
+                    "transaction_date": "2026-06-02",
+                    "description": "ROB'S NF #1234 TORONTO",
+                    "amount": "-36.50",
+                    "currency": "CAD",
+                },
+                {
+                    "account_name": "CIBC Visa",
+                    "account_type": "credit_card",
+                    "transaction_date": "2026-06-01",
+                    "description": "ROB S NF 5511 MARKHAM",
+                    "amount": "-18.75",
+                    "currency": "CAD",
+                },
+            ]
+        },
+    )
+    transactions = client.get("/api/transactions").json()
+    petro = next(transaction for transaction in transactions if transaction["merchant_raw"] == "Petro-Canada 33370 Markham")
+    mcdonalds = next(transaction for transaction in transactions if transaction["merchant_raw"] == "Mcdonald'S #11787 Q04 Unionville")
+    robs_nf = next(transaction for transaction in transactions if transaction["merchant_raw"] == "Rob'S Nf #7076 Unionville On")
+
+    petro_response = client.patch(
+        f"/api/transactions/{petro['id']}",
+        json={"category": "Transport", "merchant_normalized": petro["merchant_normalized"], "create_rule": True},
+    )
+    mcdonalds_response = client.patch(
+        f"/api/transactions/{mcdonalds['id']}",
+        json={"category": "Dining", "merchant_normalized": mcdonalds["merchant_normalized"], "create_rule": True},
+    )
+    robs_nf_response = client.patch(
+        f"/api/transactions/{robs_nf['id']}",
+        json={"category": "Groceries", "merchant_normalized": robs_nf["merchant_normalized"], "create_rule": True},
+    )
+
+    assert petro_response.status_code == 200
+    assert mcdonalds_response.status_code == 200
+    assert robs_nf_response.status_code == 200
+    updated_transactions = client.get("/api/transactions").json()
+    by_merchant = {transaction["merchant_raw"]: transaction for transaction in updated_transactions}
+    assert by_merchant["Petro-Canada 33370 Markham"]["category"] == "Transport"
+    assert by_merchant["PETRO CANADA 8842 TORONTO"]["category"] == "Transport"
+    assert by_merchant["Mcdonald'S #11787 Q04 Unionville"]["category"] == "Dining"
+    assert by_merchant["MCDONALDS 4421 TORONTO"]["category"] == "Dining"
+    assert by_merchant["Rob'S Nf #7076 Unionville On"]["category"] == "Groceries"
+    assert by_merchant["ROB'S NF #1234 TORONTO"]["category"] == "Groceries"
+    assert by_merchant["ROB S NF 5511 MARKHAM"]["category"] == "Groceries"
+
+    patterns = [rule["pattern"] for rule in client.get("/api/category-rules").json()]
+    assert "petro canada" in patterns
+    assert "mcdonald" in patterns
+    assert "rob nf" in patterns
 
 
 def test_net_worth_history_api_returns_supported_ranges_with_current_balance():

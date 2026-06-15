@@ -1,9 +1,19 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import React from "react";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TransactionsView } from "./transactions-view";
+import * as api from "@/lib/api";
 import type { Transaction } from "@/lib/types";
+
+vi.mock("@/lib/api", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
+  return {
+    ...actual,
+    getTransactions: vi.fn(),
+    patchTransactionCategory: vi.fn()
+  };
+});
 
 const transactions: Transaction[] = [
   {
@@ -60,6 +70,11 @@ const transactions: Transaction[] = [
 ];
 
 describe("TransactionsView", () => {
+  beforeEach(() => {
+    vi.mocked(api.getTransactions).mockReset();
+    vi.mocked(api.patchTransactionCategory).mockReset();
+  });
+
   it("groups transactions by account and month with clear category labels", () => {
     render(<TransactionsView initialTransactions={transactions} />);
 
@@ -137,5 +152,60 @@ describe("TransactionsView", () => {
     const historyDialog = screen.getByRole("dialog", { name: "Rogers Red World Elite 8746 monthly history" });
     expect(within(historyDialog).getByText("May 2026")).toBeInTheDocument();
     expect(within(historyDialog).getByText("$42.50")).toBeInTheDocument();
+  });
+
+  it("refreshes the table after a category change so related merchants update together", async () => {
+    const petroTransactions: Transaction[] = [
+      {
+        id: "amex-petro",
+        user_id: "local-user",
+        account_id: "amex",
+        account_name: "American Express Cobalt Card",
+        account_type: "credit_card",
+        transaction_date: "2026-06-07",
+        amount: -75,
+        currency: "CAD",
+        merchant_raw: "Petro-Canada 33370 Markham",
+        description_raw: "Petro-Canada 33370 Markham",
+        source: "simplefin",
+        merchant_normalized: "Petro-Canada 33370 Markham",
+        category: "Uncategorized",
+        transaction_type: "expense",
+        is_excluded_from_spending: false
+      },
+      {
+        id: "rogers-petro",
+        user_id: "local-user",
+        account_id: "rogers",
+        account_name: "Rogers Red World Elite",
+        account_type: "credit_card",
+        transaction_date: "2026-06-06",
+        amount: -64.12,
+        currency: "CAD",
+        merchant_raw: "PETRO CANADA 8842 TORONTO",
+        description_raw: "PETRO CANADA 8842 TORONTO",
+        source: "simplefin",
+        merchant_normalized: "PETRO CANADA 8842 TORONTO",
+        category: "Uncategorized",
+        transaction_type: "expense",
+        is_excluded_from_spending: false
+      }
+    ];
+    const refreshedTransactions = petroTransactions.map((transaction) => ({
+      ...transaction,
+      merchant_normalized: "Petro-Canada",
+      category: "Transport",
+      confidence: 0.95
+    }));
+    vi.mocked(api.patchTransactionCategory).mockResolvedValue(refreshedTransactions[0]);
+    vi.mocked(api.getTransactions).mockResolvedValue(refreshedTransactions);
+    render(<TransactionsView initialTransactions={petroTransactions} />);
+
+    const amexSection = screen.getByRole("region", { name: "American Express Cobalt Card transactions" });
+    fireEvent.change(within(amexSection).getByRole("combobox"), { target: { value: "Transport" } });
+
+    await waitFor(() => expect(api.getTransactions).toHaveBeenCalled());
+    expect(screen.getAllByDisplayValue("Transport")).toHaveLength(2);
+    expect(api.patchTransactionCategory).toHaveBeenCalledWith("amex-petro", "Transport", "Petro-Canada 33370 Markham");
   });
 });

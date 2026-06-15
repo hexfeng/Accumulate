@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 
-import { patchTransactionCategory } from "@/lib/api";
+import { getTransactions, patchTransactionCategory } from "@/lib/api";
 import { formatCurrency } from "@/lib/format";
 import type { Transaction } from "@/lib/types";
 
@@ -43,6 +43,13 @@ export function TransactionsView({ initialTransactions }: { initialTransactions:
   async function updateCategory(transaction: Transaction, category: string) {
     const merchant = transaction.merchant_normalized ?? transaction.merchant_raw;
     const updated = await patchTransactionCategory(transaction.id, category, merchant);
+    if (updated) {
+      const refreshedTransactions = await getTransactions();
+      if (refreshedTransactions.length > 0) {
+        setTransactions(refreshedTransactions);
+        return;
+      }
+    }
     setTransactions((current) =>
       current.map((item) => (item.id === transaction.id ? updated ?? { ...item, category } : item))
     );
