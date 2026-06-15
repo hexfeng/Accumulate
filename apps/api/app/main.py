@@ -120,9 +120,13 @@ def create_app(
     def get_watchlist_symbols() -> WatchlistSymbolsResponse:
         return WatchlistSymbolsResponse(symbols=app.state.store.list_watchlist_symbols())
 
-    @app.put("/api/watchlist/symbols", response_model=WatchlistSymbolsResponse)
-    def replace_watchlist_symbols(request: WatchlistSymbolsRequest) -> WatchlistSymbolsResponse:
-        return WatchlistSymbolsResponse(symbols=app.state.store.replace_watchlist_symbols(request.symbols))
+    @app.put("/api/watchlist/symbols", response_model=WatchlistResponse)
+    def replace_watchlist_symbols(request: WatchlistSymbolsRequest) -> WatchlistResponse:
+        symbols = app.state.store.replace_watchlist_symbols(request.symbols)
+        return WatchlistResponse(
+            symbols=symbols,
+            items=[_watchlist_item(symbol, app.state.quote_service, app.state.store) for symbol in symbols],
+        )
 
     @app.get("/api/watchlist", response_model=WatchlistResponse)
     def watchlist() -> WatchlistResponse:

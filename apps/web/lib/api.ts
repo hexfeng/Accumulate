@@ -80,8 +80,7 @@ export function getWatchlist(): Promise<WatchlistResponse> {
 }
 
 export async function replaceWatchlistSymbols(symbols: string[]): Promise<WatchlistResponse> {
-  await sendJson<{ symbols: string[] }>("/api/watchlist/symbols", "PUT", { symbols });
-  return getWatchlist();
+  return sendJson<WatchlistResponse>("/api/watchlist/symbols", "PUT", { symbols });
 }
 
 export async function getQuote(symbol: string): Promise<MarketQuote> {

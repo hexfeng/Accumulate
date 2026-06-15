@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { createHolding, deleteHolding, getQuote, refreshQuotes, replaceWatchlistSymbols, searchSecurities, updateHolding } from "@/lib/api";
 import { formatCurrency, formatPercent } from "@/lib/format";
@@ -29,6 +29,9 @@ export function InvestmentsView({ accounts, initialHoldings, initialPortfolio, i
   const [holdings, setHoldings] = useState(initialHoldings);
   const [watchlist, setWatchlist] = useState(initialWatchlist);
   const [watchlistDraft, setWatchlistDraft] = useState("");
+  const [isWatchlistSaving, setIsWatchlistSaving] = useState(false);
+  const [watchlistError, setWatchlistError] = useState<string | null>(null);
+  const watchlistSavingRef = useRef(false);
   const [editingHolding, setEditingHolding] = useState<Holding | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isRefreshingPrices, setIsRefreshingPrices] = useState(false);
@@ -109,14 +112,34 @@ export function InvestmentsView({ accounts, initialHoldings, initialPortfolio, i
       setWatchlistDraft("");
       return;
     }
-    const updated = await replaceWatchlistSymbols([...watchlist.symbols, symbol]);
-    setWatchlist(updated);
-    setWatchlistDraft("");
+    const saved = await saveWatchlistSymbols([...watchlist.symbols, symbol]);
+    if (saved) {
+      setWatchlistDraft("");
+    }
   }
 
   async function removeWatchlistSymbol(symbol: string) {
-    const updated = await replaceWatchlistSymbols(watchlist.symbols.filter((item) => item !== symbol));
-    setWatchlist(updated);
+    await saveWatchlistSymbols(watchlist.symbols.filter((item) => item !== symbol));
+  }
+
+  async function saveWatchlistSymbols(symbols: string[]) {
+    if (watchlistSavingRef.current) {
+      return false;
+    }
+    watchlistSavingRef.current = true;
+    setIsWatchlistSaving(true);
+    setWatchlistError(null);
+    try {
+      const updated = await replaceWatchlistSymbols(symbols);
+      setWatchlist(updated);
+      return true;
+    } catch {
+      setWatchlistError("Could not update watchlist. Try again.");
+      return false;
+    } finally {
+      watchlistSavingRef.current = false;
+      setIsWatchlistSaving(false);
+    }
   }
 
   return (
@@ -147,10 +170,12 @@ export function InvestmentsView({ accounts, initialHoldings, initialPortfolio, i
 
       <WatchlistPanel
         draft={watchlistDraft}
+        error={watchlistError}
+        isSaving={isWatchlistSaving}
         items={watchlist.items}
         onAdd={addWatchlistSymbol}
         onDraftChange={setWatchlistDraft}
-        onRemove={(symbol) => void removeWatchlistSymbol(symbol)}
+        onRemove={removeWatchlistSymbol}
       />
 
       <div className="spending-detail-grid">
@@ -271,16 +296,20 @@ function MetricCard({ label, meta, value }: { label: string; meta: string; value
 
 function WatchlistPanel({
   draft,
+  error,
+  isSaving,
   items,
   onAdd,
   onDraftChange,
   onRemove
 }: {
   draft: string;
+  error: string | null;
+  isSaving: boolean;
   items: WatchlistItem[];
   onAdd: (event: React.FormEvent<HTMLFormElement>) => void;
   onDraftChange: (value: string) => void;
-  onRemove: (symbol: string) => void;
+  onRemove: (symbol: string) => void | Promise<void>;
 }) {
   return (
     <article className="panel watchlist-panel">
@@ -291,24 +320,25 @@ function WatchlistPanel({
             <span>Add watchlist symbol</span>
             <input value={draft} onChange={(event) => onDraftChange(event.target.value)} />
           </label>
-          <button type="submit">Add symbol</button>
+          <button type="submit" disabled={isSaving}>Add symbol</button>
         </form>
       </div>
+      {error ? <p className="watchlist-error" role="alert">{error}</p> : null}
       <div className="watchlist-strip">
         {items.map((item) => (
-          <WatchlistCard item={item} key={item.symbol} onRemove={() => onRemove(item.symbol)} />
+          <WatchlistCard isSaving={isSaving} item={item} key={item.symbol} onRemove={() => void onRemove(item.symbol)} />
         ))}
       </div>
     </article>
   );
 }
 
-function WatchlistCard({ item, onRemove }: { item: WatchlistItem; onRemove: () => void }) {
+function WatchlistCard({ isSaving, item, onRemove }: { isSaving: boolean; item: WatchlistItem; onRemove: () => void }) {
   const change = item.change_pct ?? 0;
   const isPositive = change >= 0;
   return (
     <div className="watchlist-card">
-      <button type="button" className="watchlist-remove" onClick={onRemove} aria-label={`Remove ${item.symbol}`}>x</button>
+      <button type="button" className="watchlist-remove" onClick={onRemove} aria-label={`Remove ${item.symbol}`} disabled={isSaving}>x</button>
       <span>{item.name || item.symbol}</span>
       {item.error ? (
         <strong>{item.error}</strong>

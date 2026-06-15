@@ -606,4 +606,5 @@ def test_watchlist_symbols_can_be_replaced():
 
     assert response.status_code == 200
     assert response.json()["symbols"] == ["VFV.TO", "CASH.TO"]
+    assert [item["symbol"] for item in response.json()["items"]] == ["VFV.TO", "CASH.TO"]
     assert client.get("/api/watchlist/symbols").json()["symbols"] == ["VFV.TO", "CASH.TO"]

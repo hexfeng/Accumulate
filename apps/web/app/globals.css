@@ -5202,6 +5202,12 @@ body {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
+.watchlist-error {
+  color: var(--coral);
+  font-size: var(--fs-small);
+  margin: 0;
+}
+
 .watchlist-card {
   background: var(--surface);
   border: 1px solid var(--border);

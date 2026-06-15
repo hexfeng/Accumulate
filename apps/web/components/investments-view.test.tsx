@@ -399,4 +399,40 @@ describe("InvestmentsView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Remove VFV.TO" }));
     await waitFor(() => expect(api.replaceWatchlistSymbols).toHaveBeenLastCalledWith(["^GSPC"]));
   });
+
+  it("serializes watchlist updates while a save is pending", async () => {
+    let resolveUpdate: (value: WatchlistResponse) => void = () => undefined;
+    vi.mocked(api.replaceWatchlistSymbols).mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveUpdate = resolve;
+      })
+    );
+
+    render(<InvestmentsView accounts={accounts} initialHoldings={holdings} initialPortfolio={portfolio} initialWatchlist={watchlist} />);
+
+    fireEvent.change(screen.getByLabelText("Add watchlist symbol"), { target: { value: "vfv.to" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add symbol" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove ^IXIC" }));
+
+    expect(api.replaceWatchlistSymbols).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Add symbol" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Remove ^GSPC" })).toBeDisabled();
+
+    resolveUpdate({
+      symbols: ["^GSPC", "^IXIC", "VFV.TO"],
+      items: [...watchlist.items, { symbol: "VFV.TO", name: "VFV.TO", price: 150, currency: "CAD", change_amount: null, change_pct: null }]
+    });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add symbol" })).not.toBeDisabled());
+  });
+
+  it("shows a watchlist error when a save fails", async () => {
+    vi.mocked(api.replaceWatchlistSymbols).mockRejectedValueOnce(new Error("network down"));
+
+    render(<InvestmentsView accounts={accounts} initialHoldings={holdings} initialPortfolio={portfolio} initialWatchlist={watchlist} />);
+
+    fireEvent.change(screen.getByLabelText("Add watchlist symbol"), { target: { value: "vfv.to" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add symbol" }));
+
+    expect(await screen.findByText("Could not update watchlist. Try again.")).toBeInTheDocument();
+  });
 });
