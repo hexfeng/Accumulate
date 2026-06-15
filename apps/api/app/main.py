@@ -5,7 +5,7 @@ from typing import Literal
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from app.integrations.market_data import MarketDataError, YahooFinanceQuoteService
 from app.integrations.simplefin import SimpleFinService
@@ -371,7 +371,7 @@ def _watchlist_item(symbol: str, quote_service: YahooFinanceQuoteService, store:
             provider=saved.provider,
             as_of=saved.as_of,
         )
-    except Exception:
+    except (MarketDataError, RuntimeError, ValidationError):
         return WatchlistItem(symbol=normalized, name=normalized, error="Quote unavailable")
 
 
