@@ -540,3 +540,34 @@ def test_account_delete_allows_synced_source_account_and_removes_transactions():
     assert response.json() == {"deleted_account_id": "cibc-chequing"}
     assert all(account["id"] != "cibc-chequing" for account in client.get("/api/accounts").json())
     assert all(transaction["account_id"] != "cibc-chequing" for transaction in client.get("/api/transactions").json())
+
+
+def test_dashboard_and_net_worth_use_holdings_aware_investment_value():
+    client = make_client()
+    client.post("/api/accounts", json={"name": "TFSA", "type": "investment", "balance": 10000, "currency": "CAD"})
+    client.post("/api/accounts", json={"name": "RRSP", "type": "investment", "balance": 4000, "currency": "CAD"})
+    client.post("/api/accounts", json={"name": "Cash", "type": "checking", "balance": 2000, "currency": "CAD"})
+    client.post("/api/accounts", json={"name": "Visa", "type": "credit_card", "balance": -500, "currency": "CAD"})
+    client.post(
+        "/api/holdings",
+        json={
+            "account_id": "tfsa",
+            "symbol": "VFV.TO",
+            "name": "Vanguard S&P 500 ETF",
+            "quantity": 80,
+            "average_cost": 100,
+            "market_price": 150,
+            "currency": "CAD",
+        },
+    )
+
+    dashboard = client.get("/api/dashboard").json()
+    history = client.get("/api/net-worth/history?range=1M").json()
+
+    assert dashboard["net_worth_total"] == 17500
+    assert dashboard["net_worth_uses_manual_holdings"] is True
+    assert dashboard["investment_summary"]["total_value"] == 12000
+    assert dashboard["asset_allocation"][0]["label"] == "VFV.TO"
+    assert dashboard["asset_allocation"][0]["value"] == 12000
+    assert history["current_value"] == 17500
+    assert history["points"][-1]["value"] == 17500

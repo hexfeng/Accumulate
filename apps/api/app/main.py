@@ -11,6 +11,7 @@ from app.integrations.market_data import MarketDataError, YahooFinanceQuoteServi
 from app.integrations.simplefin import SimpleFinService
 from app.domain.analytics import build_monthly_summary
 from app.domain.forecast import build_cashflow_forecast
+from app.domain.holdings_aware_net_worth import build_holdings_aware_net_worth
 from app.domain.net_worth import build_net_worth_history
 from app.domain.recurring import detect_recurring_items
 from app.domain.schemas import Account, AccountCreateRequest, AccountDeleteResponse, AccountUpdateRequest, BudgetSettings, CsvTransactionRow, DashboardSnapshot, Holding, HoldingDeleteResponse, HoldingRequest, MarketQuote, NetWorthHistory, PortfolioSnapshot, QuoteRefreshResponse, SecuritySearchResult, SimpleFinConnectRequest, SimpleFinStatus, StatementImportResponse, Transaction
@@ -264,21 +265,30 @@ def create_app(
     @app.get("/api/net-worth/history", response_model=NetWorthHistory)
     def net_worth_history(range: NetWorthRange = "1M") -> NetWorthHistory:
         snapshots = app.state.store.list_account_balance_snapshots() if hasattr(app.state.store, "list_account_balance_snapshots") else []
+        holdings_aware = build_holdings_aware_net_worth(app.state.store.list_accounts(), app.state.store.list_holdings())
         return build_net_worth_history(
             app.state.store.list_accounts(),
             range,
             snapshots=snapshots,
             transactions=app.state.store.list_transactions(),
+            current_value_override=holdings_aware.total_value,
         )
 
     @app.get("/api/dashboard", response_model=DashboardSnapshot)
     def dashboard() -> DashboardSnapshot:
+        accounts = app.state.store.list_accounts()
+        holdings = app.state.store.list_holdings()
         transactions = app.state.store.list_transactions()
+        holdings_aware = build_holdings_aware_net_worth(accounts, holdings)
         return DashboardSnapshot(
-            accounts=app.state.store.list_accounts(),
+            accounts=accounts,
             monthly_summary=build_monthly_summary(transactions, app.state.store.budget),
             recurring_items=detect_recurring_items(transactions),
-            forecast=build_cashflow_forecast(app.state.store.list_accounts(), transactions),
+            forecast=build_cashflow_forecast(accounts, transactions),
+            asset_allocation=holdings_aware.asset_allocation,
+            investment_summary=app.state.store.portfolio_snapshot(),
+            net_worth_total=holdings_aware.total_value,
+            net_worth_uses_manual_holdings=holdings_aware.used_manual_holdings,
         )
 
     @app.get("/api/integrations/simplefin/status", response_model=SimpleFinStatus)
