@@ -136,6 +136,7 @@ describe("InvestmentsView", () => {
     render(<InvestmentsView accounts={accounts} initialHoldings={holdings} initialPortfolio={portfolio} initialWatchlist={emptyWatchlist} />);
 
     expect(screen.getByRole("heading", { name: "Investments" })).toBeInTheDocument();
+    expect(screen.getByText("Track holdings, cost basis, live market prices, allocation, and account grouping in one workspace.")).toBeInTheDocument();
     expect(screen.getAllByText("$1,250.00").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("$150.00")).toBeInTheDocument();
     expect(screen.getByText("13.6%")).toBeInTheDocument();

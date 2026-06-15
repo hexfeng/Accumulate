@@ -148,7 +148,7 @@ export function InvestmentsView({ accounts, initialHoldings, initialPortfolio, i
         <div>
           <span className="section-eyebrow">Manual holdings MVP</span>
           <h1>Investments</h1>
-          <p>Track holdings, cost basis, portfolio value, allocation, and account grouping before external market data is connected.</p>
+          <p>Track holdings, cost basis, live market prices, allocation, and account grouping in one workspace.</p>
         </div>
         <div className="investments-header-actions">
           {quoteStatus ? <span>{quoteStatus}</span> : null}
