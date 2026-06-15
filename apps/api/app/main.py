@@ -264,10 +264,12 @@ def create_app(
 
     @app.get("/api/net-worth/history", response_model=NetWorthHistory)
     def net_worth_history(range: NetWorthRange = "1M") -> NetWorthHistory:
+        accounts = app.state.store.list_accounts()
+        holdings = app.state.store.list_holdings()
         snapshots = app.state.store.list_account_balance_snapshots() if hasattr(app.state.store, "list_account_balance_snapshots") else []
-        holdings_aware = build_holdings_aware_net_worth(app.state.store.list_accounts(), app.state.store.list_holdings())
+        holdings_aware = build_holdings_aware_net_worth(accounts, holdings)
         return build_net_worth_history(
-            app.state.store.list_accounts(),
+            accounts,
             range,
             snapshots=snapshots,
             transactions=app.state.store.list_transactions(),
