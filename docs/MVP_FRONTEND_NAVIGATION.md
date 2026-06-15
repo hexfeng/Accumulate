@@ -2,7 +2,7 @@
 
 This document captures the MVP frontend information architecture, route map, cross-page navigation, and current implementation status. It is the day-to-day product and task reference while the longer PRD/technical architecture document remains the broader product source.
 
-Last updated: 2026-06-12
+Last updated: 2026-06-15
 
 ## 1. Navigation principles
 
@@ -63,7 +63,7 @@ Manage
 /dashboard                -> financial command center and page hub
 /cash                     -> liquidity, monthly flow, forecast risk, account distribution
 /spending                 -> income, expenses, budgets, category and merchant insights
-/investments              -> portfolio, quote-backed holdings, returns, allocation, FX exposure
+/investments              -> portfolio, market watchlist, quote-backed holdings, returns, allocation, FX exposure
 /recap                    -> monthly, quarterly, and yearly recap
 /transactions             -> transaction detail, review, categorization, rules
 /accounts                 -> accounts, manual CRUD, data sources, sync health
@@ -87,7 +87,7 @@ Future nested routes may include:
 | Dashboard | Implemented | Am I financially healthy right now? | KPI summary, net-worth trend, alerts, next actions, cashflow/spending previews, cross-page entry points. |
 | Cash | Implemented | Is my short-term liquidity safe? | Monthly in-flow/out-flow, available cash, net short-term position, 30/60/90 forecast, cash distribution, cash and credit account drill-downs. |
 | Spending | Implemented | Where did my money go? | Income/spending summary, budget thresholds, category and merchant drill-downs, recurring costs, spending insights. |
-| Investments | Implemented MVP | How is my wealth performing? | Manual holdings CRUD, stock/ETF autocomplete, cached Yahoo Finance-backed portfolio price refresh, portfolio value, cost basis, unrealized gain, allocation, and account grouping. |
+| Investments | Implemented MVP | How is my wealth performing? | Manual holdings CRUD, stock/ETF autocomplete, configurable market watchlist cards, cached Yahoo Finance-backed portfolio price refresh, portfolio value, cost basis, unrealized gain, allocation, and account grouping. |
 | Recap | Implemented | What changed over a period? | Period income, spending, net cashflow, savings rate, recurring costs, notable categories, top merchants, sparse-data states, and action links. |
 | Transactions | Implemented MVP | Is the source data correct? | Search, filters, compact latest-month account previews, all-transactions dialogs, monthly history dialogs, categorization, exclusion, transfer marking, and rule creation. |
 | Accounts | Implemented | Are my accounts and data sources healthy? | Real SimpleFIN Bridge status/connect/sync/disconnect, setup-token entry, sync freshness, retry/error state, cash account grouping, credit-card obligation grouping, institution visuals, source labels, clean one-line account rows, modal-based manual entry, multi-file historical statement import, click-through account detail/update modals, and click-outside modal dismissal. |
@@ -201,7 +201,7 @@ The Dashboard header is the first visual focus. It should promote Total Net Wort
 
 | Element | Displays | Click target | Notes |
 |---|---|---|---|
-| Total Net Worth | Current total net worth. | `/investments` or future `/net-worth`. | MVP can use accounts-only net worth until holdings and valuation are implemented. Label the source clearly. |
+| Total Net Worth | Current total net worth. | `/investments` or future `/net-worth`. | Uses holdings-aware investment values: manual holdings replace the matching investment account balance, while investment accounts without holdings keep their account balance. |
 | Change vs yesterday | Absolute amount and percentage, such as `+$1,182.30 and +0.82% vs yesterday`. | Same as Total Net Worth. | If previous-day data is unavailable, show `No previous day data` instead of `0.00%`. |
 | Goal progress | User-configured goal name and target, such as `FIRE`, `$145.3K / $1.5M`, and a progress bar. | `/settings?section=goals`. | Default current value is Total Net Worth. If the user configures a scoped goal, use that scoped value instead. |
 | Current period | Current month or reporting period, such as `Jun 2026`. | Future period selector. | Keep as display-only for the first implementation. |
@@ -215,7 +215,7 @@ Total Net Worth belongs in the header, so KPI cards should not duplicate it. Rec
 | KPI | Displays | Click target | Notes |
 |---|---|---|---|
 | Cash | Available cash, short-term liquidity, or next cash event. | `/cash`. | Use checking + savings + cash as the MVP value. |
-| Investments | Portfolio value, cost basis, unrealized gain, or setup CTA. | `/investments`. | Show manual holdings and allocation while external market-data valuation remains deferred. |
+| Investments | Portfolio value, cost basis, unrealized gain, or setup CTA. | `/investments`. | Show manual holdings, cached market prices, watchlist context, and real allocation when available. |
 | Spending | Current month spending and budget usage. | `/spending`. | Recurring costs and spending insights are summarized here and expanded on Spending. |
 | Accounts | Connected/manual account count, sync health, or data freshness. | `/accounts`. | This also supports data status chip details. |
 | Recap | Latest monthly/quarterly recap status. | `/recap`. | Show `May recap ready` when enough period data exists. |
@@ -291,6 +291,14 @@ Frontend completed:
 4. Holding create/update accepts missing `market_price`; the API fetches the latest quote and uses the quote name when the holding name is blank.
 5. `/investments` automatically refreshes holding prices on page open, refreshes every 15 minutes while open, exposes a page-level `Refresh prices` action, uses compact one-line search results, and removes the per-holding `Refresh price` button.
 6. SimpleFIN investment accounts remain balance-only until manual holdings are entered, then holdings drive portfolio value and allocation.
+
+2026-06-15 Dashboard investments and watchlist:
+
+1. Dashboard net worth now uses holdings-aware investment values: manual holdings replace the matching investment account balance, while investment accounts without holdings continue to contribute their synced or manual balance.
+2. Dashboard asset allocation uses real holdings-aware allocation when account or holding data exists; mock allocation is only a demo/empty fallback.
+3. Dashboard Investments KPI shows real portfolio value when investment data exists.
+4. `/investments` now includes configurable market watchlist cards under the summary metrics, backed by the existing quote provider and persisted watchlist symbols.
+5. Screenshot/PDF holdings import remains a future preview-and-confirm import flow.
 
 Verification completed for commit `74da22d`:
 
@@ -371,6 +379,7 @@ Tasks:
 Acceptance:
 
 - A user can search stock/ETF symbols while adding holdings and see portfolio value/allocation, with market prices refreshed automatically and cached locally.
+- A user can add or remove broad-market watchlist symbols and see available quote progress without affecting holdings.
 - Dashboard investment card links to meaningful setup or holdings state.
 
 ### 9.4 Settings MVP
