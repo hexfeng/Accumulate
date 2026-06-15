@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { InvestmentsView } from "./investments-view";
 import * as api from "@/lib/api";
-import type { Account, Holding, PortfolioSnapshot } from "@/lib/types";
+import type { Account, Holding, PortfolioSnapshot, WatchlistResponse } from "@/lib/types";
 
 vi.mock("@/lib/api", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
@@ -14,7 +14,9 @@ vi.mock("@/lib/api", async () => {
     updateHolding: vi.fn(),
     deleteHolding: vi.fn(),
     getQuote: vi.fn(),
+    getWatchlist: vi.fn(),
     refreshQuotes: vi.fn(),
+    replaceWatchlistSymbols: vi.fn(),
     searchSecurities: vi.fn()
   };
 });
@@ -36,6 +38,35 @@ const portfolio: PortfolioSnapshot = {
   accounts: [{ account_id: "tfsa", account_name: "TFSA", value: 1250, holdings_count: 1 }]
 };
 
+const emptyWatchlist: WatchlistResponse = { symbols: [], items: [] };
+
+const watchlist: WatchlistResponse = {
+  symbols: ["^GSPC", "^IXIC"],
+  items: [
+    {
+      symbol: "^GSPC",
+      name: "S&P 500",
+      price: 7431.46,
+      currency: "USD",
+      change_amount: 37.16,
+      change_pct: 0.5,
+      provider: "test",
+      as_of: "2026-06-12T13:00:00Z"
+    },
+    {
+      symbol: "^IXIC",
+      name: "Nasdaq",
+      price: null,
+      currency: "USD",
+      change_amount: null,
+      change_pct: null,
+      provider: null,
+      as_of: null,
+      error: "Quote unavailable"
+    }
+  ]
+};
+
 describe("InvestmentsView", () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -53,6 +84,8 @@ describe("InvestmentsView", () => {
     }));
     vi.mocked(api.updateHolding).mockResolvedValue({ ...holdings[0], quantity: 12 });
     vi.mocked(api.deleteHolding).mockResolvedValue({ deleted_holding_id: "vfv" });
+    vi.mocked(api.getWatchlist).mockResolvedValue(watchlist);
+    vi.mocked(api.replaceWatchlistSymbols).mockResolvedValue(watchlist);
     vi.mocked(api.getQuote).mockResolvedValue({
       symbol: "MU",
       name: "Micron Technology, Inc.",
@@ -100,7 +133,7 @@ describe("InvestmentsView", () => {
   });
 
   it("renders portfolio value, allocation, account grouping, and holding management actions", async () => {
-    render(<InvestmentsView accounts={accounts} initialHoldings={holdings} initialPortfolio={portfolio} />);
+    render(<InvestmentsView accounts={accounts} initialHoldings={holdings} initialPortfolio={portfolio} initialWatchlist={emptyWatchlist} />);
 
     expect(screen.getByRole("heading", { name: "Investments" })).toBeInTheDocument();
     expect(screen.getAllByText("$1,250.00").length).toBeGreaterThanOrEqual(1);
@@ -140,7 +173,7 @@ describe("InvestmentsView", () => {
   });
 
   it("searches and selects securities while adding a holding", async () => {
-    render(<InvestmentsView accounts={accounts} initialHoldings={[]} initialPortfolio={{ total_value: 0, total_cost: 0, unrealized_gain: 0, unrealized_gain_pct: 0, allocation: [], accounts: [] }} />);
+    render(<InvestmentsView accounts={accounts} initialHoldings={[]} initialPortfolio={{ total_value: 0, total_cost: 0, unrealized_gain: 0, unrealized_gain_pct: 0, allocation: [], accounts: [] }} initialWatchlist={emptyWatchlist} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Add holding" }));
     const dialog = screen.getByRole("dialog", { name: "Add holding" });
@@ -190,7 +223,7 @@ describe("InvestmentsView", () => {
       currency: "CAD",
       source: "manual"
     });
-    render(<InvestmentsView accounts={accounts} initialHoldings={[]} initialPortfolio={{ total_value: 0, total_cost: 0, unrealized_gain: 0, unrealized_gain_pct: 0, allocation: [], accounts: [] }} />);
+    render(<InvestmentsView accounts={accounts} initialHoldings={[]} initialPortfolio={{ total_value: 0, total_cost: 0, unrealized_gain: 0, unrealized_gain_pct: 0, allocation: [], accounts: [] }} initialWatchlist={emptyWatchlist} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Add holding" }));
     const dialog = screen.getByRole("dialog", { name: "Add holding" });
@@ -222,7 +255,7 @@ describe("InvestmentsView", () => {
       }
     ]);
 
-    render(<InvestmentsView accounts={accounts} initialHoldings={[]} initialPortfolio={{ total_value: 0, total_cost: 0, unrealized_gain: 0, unrealized_gain_pct: 0, allocation: [], accounts: [] }} />);
+    render(<InvestmentsView accounts={accounts} initialHoldings={[]} initialPortfolio={{ total_value: 0, total_cost: 0, unrealized_gain: 0, unrealized_gain_pct: 0, allocation: [], accounts: [] }} initialWatchlist={emptyWatchlist} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Add holding" }));
     const dialog = screen.getByRole("dialog", { name: "Add holding" });
@@ -253,7 +286,7 @@ describe("InvestmentsView", () => {
       message: "Refreshed 1 symbols; skipped 0 fresh cached symbols."
     });
 
-    render(<InvestmentsView accounts={accounts} initialHoldings={holdings} initialPortfolio={portfolio} />);
+    render(<InvestmentsView accounts={accounts} initialHoldings={holdings} initialPortfolio={portfolio} initialWatchlist={emptyWatchlist} />);
 
     expect(api.refreshQuotes).toHaveBeenCalledWith(false);
     await act(async () => {
@@ -307,6 +340,7 @@ describe("InvestmentsView", () => {
         ]}
         initialHoldings={[]}
         initialPortfolio={{ total_value: 0, total_cost: 0, unrealized_gain: 0, unrealized_gain_pct: 0, allocation: [], accounts: [] }}
+        initialWatchlist={emptyWatchlist}
       />
     );
 
@@ -317,5 +351,52 @@ describe("InvestmentsView", () => {
     expect(screen.getAllByText("Self Directed RRSP").length).toBeGreaterThan(0);
     expect(screen.getAllByText("$10,776.13").length).toBeGreaterThan(0);
     expect(screen.getAllByText("$2,151.86").length).toBeGreaterThan(0);
+  });
+
+  it("renders watchlist cards below the investment summary", async () => {
+    render(<InvestmentsView accounts={accounts} initialHoldings={holdings} initialPortfolio={portfolio} initialWatchlist={watchlist} />);
+
+    expect(screen.getByText("Watchlist")).toBeInTheDocument();
+    expect(screen.getByText("S&P 500")).toBeInTheDocument();
+    expect(screen.getByText("7,431.46")).toBeInTheDocument();
+    expect(screen.getByText((_content, element) => element?.textContent === "+37.16 +0.50%")).toBeInTheDocument();
+    expect(screen.getByText("Nasdaq")).toBeInTheDocument();
+    expect(screen.getByText("Quote unavailable")).toBeInTheDocument();
+  });
+
+  it("adds and removes watchlist symbols", async () => {
+    const withVfv: WatchlistResponse = {
+      symbols: ["^GSPC", "VFV.TO"],
+      items: [
+        watchlist.items[0],
+        {
+          symbol: "VFV.TO",
+          name: "Vanguard S&P 500 ETF",
+          price: 150,
+          currency: "CAD",
+          change_amount: null,
+          change_pct: null,
+          provider: "test",
+          as_of: "2026-06-12T13:00:00Z"
+        }
+      ]
+    };
+    vi.mocked(api.replaceWatchlistSymbols)
+      .mockResolvedValueOnce(withVfv)
+      .mockResolvedValueOnce({
+        symbols: ["^GSPC"],
+        items: [watchlist.items[0]]
+      });
+
+    render(<InvestmentsView accounts={accounts} initialHoldings={holdings} initialPortfolio={portfolio} initialWatchlist={watchlist} />);
+
+    fireEvent.change(screen.getByLabelText("Add watchlist symbol"), { target: { value: "vfv.to" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add symbol" }));
+
+    await waitFor(() => expect(api.replaceWatchlistSymbols).toHaveBeenCalledWith(["^GSPC", "^IXIC", "VFV.TO"]));
+    await waitFor(() => expect(screen.getAllByText("Vanguard S&P 500 ETF").length).toBeGreaterThan(1));
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove VFV.TO" }));
+    await waitFor(() => expect(api.replaceWatchlistSymbols).toHaveBeenLastCalledWith(["^GSPC"]));
   });
 });

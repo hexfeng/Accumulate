@@ -121,6 +121,23 @@ export type QuoteRefreshResponse = {
   message: string;
 };
 
+export type WatchlistItem = {
+  symbol: string;
+  name: string;
+  price?: number | null;
+  currency: string;
+  change_amount?: number | null;
+  change_pct?: number | null;
+  provider?: string | null;
+  as_of?: string | null;
+  error?: string | null;
+};
+
+export type WatchlistResponse = {
+  symbols: string[];
+  items: WatchlistItem[];
+};
+
 export type HoldingDeleteResponse = {
   deleted_holding_id: string;
 };

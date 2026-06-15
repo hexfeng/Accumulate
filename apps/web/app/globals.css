@@ -5153,6 +5153,119 @@ body {
   opacity: 0.55;
 }
 
+.watchlist-panel {
+  overflow: hidden;
+}
+
+.watchlist-heading {
+  gap: 16px;
+}
+
+.watchlist-form {
+  align-items: end;
+  display: flex;
+  gap: 8px;
+}
+
+.watchlist-form label {
+  display: grid;
+  gap: 4px;
+}
+
+.watchlist-form label span {
+  color: var(--muted);
+  font-size: var(--fs-small);
+}
+
+.watchlist-form input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  min-height: 36px;
+  padding: 8px 10px;
+  width: 160px;
+}
+
+.watchlist-form button {
+  background: var(--text);
+  border: 1px solid var(--text);
+  border-radius: 8px;
+  color: white;
+  min-height: 36px;
+  padding: 8px 12px;
+}
+
+.watchlist-strip {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.watchlist-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  min-height: 132px;
+  padding: 16px;
+  position: relative;
+}
+
+.watchlist-card > span {
+  color: var(--text);
+  font-weight: 700;
+  padding-right: 28px;
+}
+
+.watchlist-card > strong {
+  color: var(--text);
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.watchlist-card > small {
+  font-weight: 700;
+}
+
+.watchlist-card > small.positive {
+  color: var(--green);
+}
+
+.watchlist-card > small.negative {
+  color: var(--coral);
+}
+
+.watchlist-remove {
+  align-items: center;
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  display: inline-flex;
+  height: 28px;
+  justify-content: center;
+  padding: 0;
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  width: 28px;
+}
+
+.watchlist-spark {
+  background: linear-gradient(90deg, transparent, rgba(20, 125, 100, 0.18));
+  border-bottom: 2px solid var(--green);
+  border-radius: 999px;
+  height: 30px;
+  margin-top: 8px;
+}
+
+.watchlist-spark.negative {
+  background: linear-gradient(90deg, transparent, rgba(200, 79, 58, 0.18));
+  border-bottom-color: var(--coral);
+}
+
 .security-search-panel {
   display: grid;
   gap: 10px;

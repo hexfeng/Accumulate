@@ -2,14 +2,15 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
-import { createHolding, deleteHolding, getQuote, refreshQuotes, searchSecurities, updateHolding } from "@/lib/api";
+import { createHolding, deleteHolding, getQuote, refreshQuotes, replaceWatchlistSymbols, searchSecurities, updateHolding } from "@/lib/api";
 import { formatCurrency, formatPercent } from "@/lib/format";
-import type { Account, Holding, HoldingInput, PortfolioSnapshot, SecuritySearchResult } from "@/lib/types";
+import type { Account, Holding, HoldingInput, PortfolioSnapshot, SecuritySearchResult, WatchlistItem, WatchlistResponse } from "@/lib/types";
 
 type InvestmentsViewProps = {
   accounts: Account[];
   initialHoldings: Holding[];
   initialPortfolio: PortfolioSnapshot;
+  initialWatchlist: WatchlistResponse;
 };
 
 type HoldingDraft = HoldingInput;
@@ -24,8 +25,10 @@ const EMPTY_DRAFT: HoldingDraft = {
   currency: "CAD"
 };
 
-export function InvestmentsView({ accounts, initialHoldings, initialPortfolio }: InvestmentsViewProps) {
+export function InvestmentsView({ accounts, initialHoldings, initialPortfolio, initialWatchlist }: InvestmentsViewProps) {
   const [holdings, setHoldings] = useState(initialHoldings);
+  const [watchlist, setWatchlist] = useState(initialWatchlist);
+  const [watchlistDraft, setWatchlistDraft] = useState("");
   const [editingHolding, setEditingHolding] = useState<Holding | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isRefreshingPrices, setIsRefreshingPrices] = useState(false);
@@ -99,6 +102,23 @@ export function InvestmentsView({ accounts, initialHoldings, initialPortfolio }:
     setHoldings((current) => current.filter((item) => item.id !== holding.id));
   }
 
+  async function addWatchlistSymbol(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const symbol = watchlistDraft.trim().toUpperCase();
+    if (!symbol || watchlist.symbols.includes(symbol)) {
+      setWatchlistDraft("");
+      return;
+    }
+    const updated = await replaceWatchlistSymbols([...watchlist.symbols, symbol]);
+    setWatchlist(updated);
+    setWatchlistDraft("");
+  }
+
+  async function removeWatchlistSymbol(symbol: string) {
+    const updated = await replaceWatchlistSymbols(watchlist.symbols.filter((item) => item !== symbol));
+    setWatchlist(updated);
+  }
+
   return (
     <section className="page-stack investments-page" aria-label="Investments workspace">
       <header className="page-header">
@@ -124,6 +144,14 @@ export function InvestmentsView({ accounts, initialHoldings, initialPortfolio }:
         <MetricCard label="Unrealized gain" value={formatCurrency(portfolio.unrealized_gain)} meta={formatPercent(portfolio.unrealized_gain_pct)} />
         <MetricCard label="Accounts" value={String(portfolio.accounts.length)} meta="Investment groups" />
       </div>
+
+      <WatchlistPanel
+        draft={watchlistDraft}
+        items={watchlist.items}
+        onAdd={addWatchlistSymbol}
+        onDraftChange={setWatchlistDraft}
+        onRemove={(symbol) => void removeWatchlistSymbol(symbol)}
+      />
 
       <div className="spending-detail-grid">
         <article className="panel">
@@ -238,6 +266,62 @@ function MetricCard({ label, meta, value }: { label: string; meta: string; value
       <strong>{value}</strong>
       <small>{meta}</small>
     </article>
+  );
+}
+
+function WatchlistPanel({
+  draft,
+  items,
+  onAdd,
+  onDraftChange,
+  onRemove
+}: {
+  draft: string;
+  items: WatchlistItem[];
+  onAdd: (event: React.FormEvent<HTMLFormElement>) => void;
+  onDraftChange: (value: string) => void;
+  onRemove: (symbol: string) => void;
+}) {
+  return (
+    <article className="panel watchlist-panel">
+      <div className="panel-heading compact watchlist-heading">
+        <h2>Watchlist</h2>
+        <form className="watchlist-form" onSubmit={onAdd}>
+          <label>
+            <span>Add watchlist symbol</span>
+            <input value={draft} onChange={(event) => onDraftChange(event.target.value)} />
+          </label>
+          <button type="submit">Add symbol</button>
+        </form>
+      </div>
+      <div className="watchlist-strip">
+        {items.map((item) => (
+          <WatchlistCard item={item} key={item.symbol} onRemove={() => onRemove(item.symbol)} />
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function WatchlistCard({ item, onRemove }: { item: WatchlistItem; onRemove: () => void }) {
+  const change = item.change_pct ?? 0;
+  const isPositive = change >= 0;
+  return (
+    <div className="watchlist-card">
+      <button type="button" className="watchlist-remove" onClick={onRemove} aria-label={`Remove ${item.symbol}`}>x</button>
+      <span>{item.name || item.symbol}</span>
+      {item.error ? (
+        <strong>{item.error}</strong>
+      ) : (
+        <>
+          <strong>{formatMarketNumber(item.price ?? 0)}</strong>
+          <small className={isPositive ? "positive" : "negative"}>
+            {formatChangeAmount(item.change_amount)} {formatSignedPercent(change)}
+          </small>
+          <div className={`watchlist-spark ${isPositive ? "positive" : "negative"}`} aria-hidden="true" />
+        </>
+      )}
+    </div>
   );
 }
 
@@ -424,6 +508,23 @@ function formatExchange(exchange?: string | null) {
     return "TSX";
   }
   return normalized.length <= 4 ? upper : normalized;
+}
+
+function formatMarketNumber(value: number) {
+  return new Intl.NumberFormat("en-CA", { maximumFractionDigits: 2, minimumFractionDigits: 2 }).format(value);
+}
+
+function formatChangeAmount(value?: number | null) {
+  if (value == null) {
+    return "";
+  }
+  const sign = value >= 0 ? "+" : "";
+  return `${sign}${formatMarketNumber(value)}`;
+}
+
+function formatSignedPercent(value: number) {
+  const sign = value >= 0 ? "+" : "";
+  return `${sign}${value.toFixed(2)}%`;
 }
 
 function buildPortfolioSnapshot(holdings: Holding[], fallback: PortfolioSnapshot, investmentAccounts: Account[]): PortfolioSnapshot {
