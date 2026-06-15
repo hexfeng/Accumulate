@@ -9,7 +9,7 @@ from app.domain.categorization import DEFAULT_RULES, build_user_rule_pattern, ca
 from app.domain.normalization import normalize_csv_transaction
 from app.domain.schemas import Account, AccountBalanceSnapshot, BudgetSettings, CategoryRule, CsvTransactionRow, Holding, MarketQuote, PortfolioSnapshot, Transaction
 from app.domain.transaction_classification import normalize_internal_flows
-from app.store import LOCAL_USER_ID, AccountConflictError, AccountNotFoundError, _build_portfolio_snapshot, _clean_simplefin_account_name, _date_from_iso, _infer_simplefin_account_type, _latest_statement_row_date, _money, _normalize_simplefin_account_type, _simplefin_account_institution, _simplefin_connection_names, _simplefin_institution_overrides, _simplefin_transaction_date, _slug, _statement_transaction_from_row
+from app.store import LOCAL_USER_ID, DEFAULT_WATCHLIST_SYMBOLS, AccountConflictError, AccountNotFoundError, _build_portfolio_snapshot, _clean_simplefin_account_name, _date_from_iso, _infer_simplefin_account_type, _latest_statement_row_date, _money, _normalize_simplefin_account_type, _normalize_symbol_list, _simplefin_account_institution, _simplefin_connection_names, _simplefin_institution_overrides, _simplefin_transaction_date, _slug, _statement_transaction_from_row
 
 
 metadata = MetaData()
@@ -125,6 +125,13 @@ market_quotes = Table(
     Column("fetched_at", String, nullable=False),
 )
 
+watchlist_symbols = Table(
+    "watchlist_symbols",
+    metadata,
+    Column("symbol", String, primary_key=True),
+    Column("position", Float, nullable=False),
+)
+
 
 class DatabaseStore:
     def __init__(self, database_url: str):
@@ -132,6 +139,7 @@ class DatabaseStore:
         metadata.create_all(self.engine)
         self._ensure_schema_updates()
         self._ensure_settings()
+        self._ensure_watchlist_defaults()
 
     @classmethod
     def from_engine(cls, engine: Engine) -> "DatabaseStore":
@@ -140,6 +148,7 @@ class DatabaseStore:
         metadata.create_all(engine)
         instance._ensure_schema_updates()
         instance._ensure_settings()
+        instance._ensure_watchlist_defaults()
         return instance
 
     def _ensure_schema_updates(self) -> None:
@@ -170,6 +179,14 @@ class DatabaseStore:
                         forecast_assumptions={},
                     )
                 )
+
+    def _ensure_watchlist_defaults(self) -> None:
+        with self.engine.begin() as connection:
+            existing = connection.execute(select(watchlist_symbols.c.symbol)).first()
+            if existing is not None:
+                return
+            for index, symbol in enumerate(DEFAULT_WATCHLIST_SYMBOLS):
+                connection.execute(insert(watchlist_symbols).values(symbol=symbol, position=index))
 
     @property
     def budget(self) -> BudgetSettings:
@@ -527,6 +544,21 @@ class DatabaseStore:
                 updated_rows = connection.execute(select(holdings).where(holdings.c.symbol == symbol)).mappings().all()
                 updated = [Holding(**dict(updated_row)) for updated_row in updated_rows]
         return updated
+
+    def list_watchlist_symbols(self) -> list[str]:
+        with self.engine.begin() as connection:
+            rows = connection.execute(select(watchlist_symbols).order_by(watchlist_symbols.c.position)).mappings().all()
+        return [str(row["symbol"]) for row in rows] or list(DEFAULT_WATCHLIST_SYMBOLS)
+
+    def replace_watchlist_symbols(self, symbols: list[str]) -> list[str]:
+        cleaned = _normalize_symbol_list(symbols)
+        if not cleaned:
+            cleaned = list(DEFAULT_WATCHLIST_SYMBOLS)
+        with self.engine.begin() as connection:
+            connection.execute(delete(watchlist_symbols))
+            for index, symbol in enumerate(cleaned):
+                connection.execute(insert(watchlist_symbols).values(symbol=symbol, position=index))
+        return cleaned
 
     def portfolio_snapshot(self) -> PortfolioSnapshot:
         return _build_portfolio_snapshot(self.list_holdings(), self.list_accounts())

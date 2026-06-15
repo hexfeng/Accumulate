@@ -14,7 +14,7 @@ from app.domain.forecast import build_cashflow_forecast
 from app.domain.holdings_aware_net_worth import build_holdings_aware_net_worth
 from app.domain.net_worth import build_net_worth_history
 from app.domain.recurring import detect_recurring_items
-from app.domain.schemas import Account, AccountCreateRequest, AccountDeleteResponse, AccountUpdateRequest, BudgetSettings, CsvTransactionRow, DashboardSnapshot, Holding, HoldingDeleteResponse, HoldingRequest, MarketQuote, NetWorthHistory, PortfolioSnapshot, QuoteRefreshResponse, SecuritySearchResult, SimpleFinConnectRequest, SimpleFinStatus, StatementImportResponse, Transaction
+from app.domain.schemas import Account, AccountCreateRequest, AccountDeleteResponse, AccountUpdateRequest, BudgetSettings, CsvTransactionRow, DashboardSnapshot, Holding, HoldingDeleteResponse, HoldingRequest, MarketQuote, NetWorthHistory, PortfolioSnapshot, QuoteRefreshResponse, SecuritySearchResult, SimpleFinConnectRequest, SimpleFinStatus, StatementImportResponse, Transaction, WatchlistItem, WatchlistResponse, WatchlistSymbolsRequest, WatchlistSymbolsResponse
 from app.domain.statement_import import extract_statement_text, parse_statement_text
 from app.db_store import DatabaseStore
 from app.store import LocalStore, AccountConflictError, AccountNotFoundError
@@ -115,6 +115,22 @@ def create_app(
             return [SecuritySearchResult.model_validate(result) for result in app.state.quote_service.search(q, max(1, min(limit, 12)))]
         except MarketDataError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
+
+    @app.get("/api/watchlist/symbols", response_model=WatchlistSymbolsResponse)
+    def get_watchlist_symbols() -> WatchlistSymbolsResponse:
+        return WatchlistSymbolsResponse(symbols=app.state.store.list_watchlist_symbols())
+
+    @app.put("/api/watchlist/symbols", response_model=WatchlistSymbolsResponse)
+    def replace_watchlist_symbols(request: WatchlistSymbolsRequest) -> WatchlistSymbolsResponse:
+        return WatchlistSymbolsResponse(symbols=app.state.store.replace_watchlist_symbols(request.symbols))
+
+    @app.get("/api/watchlist", response_model=WatchlistResponse)
+    def watchlist() -> WatchlistResponse:
+        symbols = app.state.store.list_watchlist_symbols()
+        return WatchlistResponse(
+            symbols=symbols,
+            items=[_watchlist_item(symbol, app.state.quote_service, app.state.store) for symbol in symbols],
+        )
 
     @app.post("/api/quotes/refresh", response_model=QuoteRefreshResponse)
     def refresh_quotes(force: bool = False) -> QuoteRefreshResponse:
@@ -338,6 +354,25 @@ def _resolve_holding_quote(request: HoldingRequest, quote_service: YahooFinanceQ
         if not name:
             name = quote.name
     return request.model_copy(update={"symbol": symbol, "name": name or symbol, "market_price": market_price, "currency": currency})
+
+
+def _watchlist_item(symbol: str, quote_service: YahooFinanceQuoteService, store: LocalStore | DatabaseStore) -> WatchlistItem:
+    normalized = symbol.strip().upper()
+    try:
+        quote = MarketQuote.model_validate(quote_service.get_quote(normalized))
+        saved = store.save_market_quote(quote)
+        return WatchlistItem(
+            symbol=saved.symbol,
+            name=saved.name,
+            price=saved.price,
+            currency=saved.currency,
+            change_amount=None,
+            change_pct=None,
+            provider=saved.provider,
+            as_of=saved.as_of,
+        )
+    except Exception:
+        return WatchlistItem(symbol=normalized, name=normalized, error="Quote unavailable")
 
 
 def _parse_month(month: str | None) -> date | None:

@@ -76,6 +76,31 @@ class MarketQuote(BaseModel):
     as_of: str
 
 
+class WatchlistItem(BaseModel):
+    symbol: str
+    name: str
+    price: float | None = None
+    currency: str = "CAD"
+    change_amount: float | None = None
+    change_pct: float | None = None
+    provider: str | None = None
+    as_of: str | None = None
+    error: str | None = None
+
+
+class WatchlistResponse(BaseModel):
+    symbols: list[str]
+    items: list[WatchlistItem]
+
+
+class WatchlistSymbolsRequest(BaseModel):
+    symbols: list[str]
+
+
+class WatchlistSymbolsResponse(BaseModel):
+    symbols: list[str]
+
+
 class SecuritySearchResult(BaseModel):
     symbol: str
     name: str

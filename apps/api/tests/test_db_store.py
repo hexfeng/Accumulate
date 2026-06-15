@@ -171,3 +171,14 @@ def test_default_store_uses_local_sqlite_database_when_no_database_url(monkeypat
     assert database_path.exists()
     assert len(reloaded.list_transactions()) == 1
 
+
+def test_database_store_persists_watchlist_symbols():
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool, future=True)
+    store = DatabaseStore.from_engine(engine)
+
+    assert store.list_watchlist_symbols() == ["^DJI", "^GSPC", "^IXIC", "^RUT", "^GSPTSE"]
+    store.replace_watchlist_symbols(["VFV.TO", "CASH.TO"])
+
+    reloaded = DatabaseStore.from_engine(engine)
+    assert reloaded.list_watchlist_symbols() == ["VFV.TO", "CASH.TO"]
+

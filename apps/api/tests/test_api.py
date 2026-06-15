@@ -571,3 +571,39 @@ def test_dashboard_and_net_worth_use_holdings_aware_investment_value():
     assert dashboard["asset_allocation"][0]["value"] == 12000
     assert history["current_value"] == 17500
     assert history["points"][-1]["value"] == 17500
+
+
+def test_watchlist_returns_default_symbols_with_quotes_and_symbol_errors():
+    class PartialQuoteService(FakeQuoteService):
+        def get_quote(self, symbol: str):
+            if symbol.strip().upper() == "^RUT":
+                raise RuntimeError("rate limited")
+            return {
+                "symbol": symbol.strip().upper(),
+                "name": f"{symbol.strip().upper()} Index",
+                "price": 1000,
+                "currency": "USD",
+                "provider": "test",
+                "as_of": "2026-06-12T13:00:00Z",
+            }
+
+    client = TestClient(create_app(store=LocalStore(), quote_service=PartialQuoteService()))
+
+    response = client.get("/api/watchlist")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert [item["symbol"] for item in data["items"]] == ["^DJI", "^GSPC", "^IXIC", "^RUT", "^GSPTSE"]
+    assert data["items"][0]["price"] == 1000
+    assert data["items"][3]["price"] is None
+    assert data["items"][3]["error"] == "Quote unavailable"
+
+
+def test_watchlist_symbols_can_be_replaced():
+    client = TestClient(create_app(store=LocalStore(), quote_service=FakeQuoteService()))
+
+    response = client.put("/api/watchlist/symbols", json={"symbols": ["vfv.to", " CASH.TO ", "vfv.to"]})
+
+    assert response.status_code == 200
+    assert response.json()["symbols"] == ["VFV.TO", "CASH.TO"]
+    assert client.get("/api/watchlist/symbols").json()["symbols"] == ["VFV.TO", "CASH.TO"]

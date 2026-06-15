@@ -14,6 +14,7 @@ from app.domain.transaction_classification import normalize_internal_flows
 
 
 LOCAL_USER_ID = "local-user"
+DEFAULT_WATCHLIST_SYMBOLS = ["^DJI", "^GSPC", "^IXIC", "^RUT", "^GSPTSE"]
 
 
 class AccountNotFoundError(Exception):
@@ -32,6 +33,7 @@ class LocalStore:
     balance_snapshots: dict[str, AccountBalanceSnapshot] = field(default_factory=dict)
     market_quotes: dict[str, MarketQuote] = field(default_factory=dict)
     market_quote_fetched_at: dict[str, datetime] = field(default_factory=dict)
+    watchlist_symbols: list[str] = field(default_factory=lambda: list(DEFAULT_WATCHLIST_SYMBOLS))
     simplefin_coverages: list[dict[str, str]] = field(default_factory=list)
     user_rules: list[CategoryRule] = field(default_factory=list)
     budget: BudgetSettings = field(default_factory=lambda: BudgetSettings(monthly_budget=3000, category_budgets={"Groceries": 650, "Dining": 500, "Subscriptions": 150}))
@@ -278,6 +280,14 @@ class LocalStore:
             updated_holdings.append(updated)
         return updated_holdings
 
+    def list_watchlist_symbols(self) -> list[str]:
+        return list(self.watchlist_symbols or DEFAULT_WATCHLIST_SYMBOLS)
+
+    def replace_watchlist_symbols(self, symbols: list[str]) -> list[str]:
+        cleaned = _normalize_symbol_list(symbols)
+        self.watchlist_symbols = cleaned or list(DEFAULT_WATCHLIST_SYMBOLS)
+        return list(self.watchlist_symbols)
+
     def portfolio_snapshot(self) -> PortfolioSnapshot:
         return _build_portfolio_snapshot(self.list_holdings(), self.list_accounts())
 
@@ -389,6 +399,18 @@ class LocalStore:
 
 def _slug(value: str) -> str:
     return "-".join(part for part in "".join(ch.lower() if ch.isalnum() else " " for ch in value).split())
+
+
+def _normalize_symbol_list(symbols: list[str]) -> list[str]:
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for symbol in symbols:
+        cleaned = symbol.strip().upper()
+        if not cleaned or cleaned in seen:
+            continue
+        normalized.append(cleaned)
+        seen.add(cleaned)
+    return normalized[:12]
 
 
 def _money(value: float) -> float:
