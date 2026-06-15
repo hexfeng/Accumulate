@@ -1,5 +1,14 @@
 import type { BudgetSettings, DashboardSnapshot, Holding, NetWorthHistory, NetWorthRange, PortfolioSnapshot, Transaction } from "./types";
 
+export const demoPortfolio: PortfolioSnapshot = {
+  total_value: 1250,
+  total_cost: 1100,
+  unrealized_gain: 150,
+  unrealized_gain_pct: 13.64,
+  allocation: [{ label: "VFV.TO", value: 1250, percent: 100 }],
+  accounts: [{ account_id: "tfsa", account_name: "TFSA", value: 1250, holdings_count: 1 }]
+};
+
 export const demoDashboard: DashboardSnapshot = {
   accounts: [
     { id: "cibc-chequing", user_id: "local-user", name: "CIBC Chequing", type: "checking", balance: 4200, currency: "CAD", source: "mock_simplefin" },
@@ -11,6 +20,9 @@ export const demoDashboard: DashboardSnapshot = {
     { label: "ETF", percent: 33, tone: "etf", is_mock: true },
     { label: "Cash", percent: 25, tone: "cash", is_mock: true }
   ],
+  investment_summary: demoPortfolio,
+  net_worth_total: 14540,
+  net_worth_uses_manual_holdings: false,
   monthly_summary: {
     month: "2026-05",
     total_income: 5200,
@@ -84,15 +96,6 @@ export const demoHoldings: Holding[] = [
     source: "manual"
   }
 ];
-
-export const demoPortfolio: PortfolioSnapshot = {
-  total_value: 1250,
-  total_cost: 1100,
-  unrealized_gain: 150,
-  unrealized_gain_pct: 13.64,
-  allocation: [{ label: "VFV.TO", value: 1250, percent: 100 }],
-  accounts: [{ account_id: "tfsa", account_name: "TFSA", value: 1250, holdings_count: 1 }]
-};
 
 const NET_WORTH_RANGES: NetWorthRange[] = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y", "ALL"];
 const RANGE_POINT_COUNTS: Record<NetWorthRange, number> = {

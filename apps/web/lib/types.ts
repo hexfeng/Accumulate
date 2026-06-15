@@ -197,6 +197,7 @@ export type CashflowForecast = {
 
 export type AssetAllocationItem = {
   label: string;
+  value?: number;
   percent: number;
   tone: "stocks" | "etf" | "cash";
   is_mock?: boolean;
@@ -223,6 +224,9 @@ export type NetWorthHistory = {
 export type DashboardSnapshot = {
   accounts: Account[];
   asset_allocation?: AssetAllocationItem[];
+  investment_summary?: PortfolioSnapshot | null;
+  net_worth_total?: number;
+  net_worth_uses_manual_holdings?: boolean;
   monthly_summary: MonthlySummary;
   recurring_items: RecurringItem[];
   forecast: CashflowForecast;

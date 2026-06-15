@@ -118,4 +118,39 @@ describe("DashboardView", () => {
     expect(screen.getByText("$11,000.00")).toBeInTheDocument();
     expect(container.querySelector(".chart-hover-guide")).toBeInTheDocument();
   });
+
+  it("renders holdings-aware net worth, real allocation, and investment KPI", () => {
+    render(
+      <DashboardView
+        initialNetWorthHistory={{ ...demoNetWorthHistoryByRange["1M"], current_value: 17500 }}
+        snapshot={{
+          ...demoDashboard,
+          net_worth_total: 17500,
+          net_worth_uses_manual_holdings: true,
+          investment_summary: {
+            total_value: 12000,
+            total_cost: 8000,
+            unrealized_gain: 4000,
+            unrealized_gain_pct: 50,
+            allocation: [{ label: "VFV.TO", value: 12000, percent: 100 }],
+            accounts: [{ account_id: "tfsa", account_name: "TFSA", value: 12000, holdings_count: 1 }]
+          },
+          asset_allocation: [
+            { label: "VFV.TO", value: 12000, percent: 68.57, tone: "etf" },
+            { label: "RRSP", value: 4000, percent: 22.86, tone: "etf" },
+            { label: "Cash", value: 2000, percent: 11.43, tone: "cash" },
+            { label: "Visa", value: -500, percent: -2.86, tone: "stocks" }
+          ]
+        }}
+      />
+    );
+
+    expect(screen.getAllByText("$17,500.00").length).toBeGreaterThan(0);
+    expect(screen.getByText("Holdings-aware estimate")).toBeInTheDocument();
+    expect(screen.getByText("Asset mix")).toBeInTheDocument();
+    expect(screen.queryByText("Mock asset mix")).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "VFV.TO 69%, RRSP 23%, Cash 11%, Visa -3%" })).toBeInTheDocument();
+    expect(screen.getByText("$12,000.00")).toBeInTheDocument();
+    expect(screen.getByText("Portfolio value")).toBeInTheDocument();
+  });
 });
