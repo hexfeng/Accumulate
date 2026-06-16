@@ -53,7 +53,21 @@ def build_net_worth_history(
         current_value_override if current_value_override is not None else sum(account.balance for account in accounts)
     )
     snapshot_points = _snapshot_points(snapshots or [], range_key, as_of)
+    transaction_points = _transaction_estimate_points(transactions or [], current_value, range_key, as_of)
     if len(snapshot_points) >= 2:
+        if transaction_points and not _snapshot_points_cover_range_start(snapshot_points, range_key, as_of):
+            change_amount = _money(current_value - transaction_points[0].value)
+            change_pct = _money((change_amount / transaction_points[0].value) * 100) if transaction_points[0].value else 0
+            return NetWorthHistory(
+                range=range_key,
+                current_value=current_value,
+                change_amount=change_amount,
+                change_pct=change_pct,
+                points=transaction_points,
+                coverage_start=transaction_points[0].date,
+                coverage_end=transaction_points[-1].date,
+                is_estimated=True,
+            )
         if snapshot_points[-1].date != as_of or snapshot_points[-1].value != current_value:
             snapshot_points.append(NetWorthHistoryPoint(date=as_of, value=current_value))
         change_amount = _money(current_value - snapshot_points[0].value)
@@ -69,7 +83,6 @@ def build_net_worth_history(
             is_estimated=False,
         )
 
-    transaction_points = _transaction_estimate_points(transactions or [], current_value, range_key, as_of)
     if transaction_points:
         change_amount = _money(current_value - transaction_points[0].value)
         change_pct = _money((change_amount / transaction_points[0].value) * 100) if transaction_points[0].value else 0
@@ -122,6 +135,12 @@ def _snapshot_points(snapshots: list[AccountBalanceSnapshot], range_key: str, as
             continue
         totals[snapshot.snapshot_date] = totals.get(snapshot.snapshot_date, 0) + snapshot.balance
     return [NetWorthHistoryPoint(date=snapshot_date, value=_money(value)) for snapshot_date, value in sorted(totals.items())]
+
+
+def _snapshot_points_cover_range_start(snapshot_points: list[NetWorthHistoryPoint], range_key: str, as_of: date) -> bool:
+    if not snapshot_points:
+        return False
+    return snapshot_points[0].date <= _range_start(range_key, as_of)
 
 
 def _transaction_estimate_points(

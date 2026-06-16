@@ -427,6 +427,88 @@ def test_net_worth_history_estimates_from_transactions_when_only_current_snapsho
     assert history.is_estimated is True
 
 
+def test_net_worth_history_estimates_from_transactions_when_snapshots_do_not_cover_range_start():
+    accounts = [
+        Account(id="checking", user_id=USER_ID, name="BMO Chequing", type="checking", balance=2000, currency="CAD"),
+        Account(id="visa", user_id=USER_ID, name="Wealthsimple Visa", type="credit_card", balance=-250, currency="CAD"),
+    ]
+    snapshots = [
+        AccountBalanceSnapshot(
+            account_id="checking",
+            account_name="BMO Chequing",
+            snapshot_date=date(2026, 6, 12),
+            balance=1900,
+            currency="CAD",
+            captured_at="2026-06-12T12:00:00+00:00",
+        ),
+        AccountBalanceSnapshot(
+            account_id="visa",
+            account_name="Wealthsimple Visa",
+            snapshot_date=date(2026, 6, 12),
+            balance=-200,
+            currency="CAD",
+            captured_at="2026-06-12T12:00:00+00:00",
+        ),
+        AccountBalanceSnapshot(
+            account_id="checking",
+            account_name="BMO Chequing",
+            snapshot_date=date(2026, 6, 16),
+            balance=2000,
+            currency="CAD",
+            captured_at="2026-06-16T12:00:00+00:00",
+        ),
+        AccountBalanceSnapshot(
+            account_id="visa",
+            account_name="Wealthsimple Visa",
+            snapshot_date=date(2026, 6, 16),
+            balance=-250,
+            currency="CAD",
+            captured_at="2026-06-16T12:00:00+00:00",
+        ),
+    ]
+    transactions = [
+        Transaction(
+            id="payroll",
+            user_id=USER_ID,
+            account_id="checking",
+            account_name="BMO Chequing",
+            account_type="checking",
+            transaction_date=date(2026, 6, 3),
+            amount=1200,
+            currency="CAD",
+            merchant_raw="PAYROLL",
+            description_raw="PAYROLL",
+            category="Income",
+        ),
+        Transaction(
+            id="grocery",
+            user_id=USER_ID,
+            account_id="visa",
+            account_name="Wealthsimple Visa",
+            account_type="credit_card",
+            transaction_date=date(2026, 6, 8),
+            amount=-150,
+            currency="CAD",
+            merchant_raw="GROCERY",
+            description_raw="GROCERY",
+            category="Groceries",
+        ),
+    ]
+
+    history = build_net_worth_history(
+        accounts,
+        "1M",
+        snapshots=snapshots,
+        transactions=transactions,
+        as_of=date(2026, 6, 16),
+    )
+
+    assert history.current_value == 1750
+    assert history.points[0].date == date(2026, 6, 2)
+    assert history.points[-1].date == date(2026, 6, 16)
+    assert history.is_estimated is True
+
+
 def test_holdings_aware_net_worth_replaces_investment_balance_per_account():
     accounts = [
         Account(id="tfsa", user_id=USER_ID, name="TFSA", type="investment", balance=10000, currency="CAD"),
