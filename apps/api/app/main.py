@@ -1,19 +1,20 @@
 import os
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from app.integrations.market_data import MarketDataError, YahooFinanceQuoteService
 from app.integrations.simplefin import SimpleFinService
 from app.domain.analytics import build_monthly_summary
 from app.domain.forecast import build_cashflow_forecast
+from app.domain.holdings_aware_net_worth import build_holdings_aware_net_worth
 from app.domain.net_worth import build_net_worth_history
 from app.domain.recurring import detect_recurring_items
-from app.domain.schemas import Account, AccountCreateRequest, AccountDeleteResponse, AccountUpdateRequest, BudgetSettings, CsvTransactionRow, DashboardSnapshot, Holding, HoldingDeleteResponse, HoldingRequest, MarketQuote, NetWorthHistory, PortfolioSnapshot, QuoteRefreshResponse, SecuritySearchResult, SimpleFinConnectRequest, SimpleFinStatus, StatementImportResponse, Transaction
+from app.domain.schemas import Account, AccountCreateRequest, AccountDeleteResponse, AccountUpdateRequest, BudgetSettings, CsvTransactionRow, DashboardSnapshot, Holding, HoldingDeleteResponse, HoldingRequest, MarketQuote, NetWorthHistory, PortfolioSnapshot, QuoteRefreshResponse, SecuritySearchResult, SimpleFinConnectRequest, SimpleFinStatus, StatementImportResponse, Transaction, WatchlistItem, WatchlistResponse, WatchlistSymbolsRequest, WatchlistSymbolsResponse
 from app.domain.statement_import import extract_statement_text, parse_statement_text
 from app.db_store import DatabaseStore
 from app.store import LocalStore, AccountConflictError, AccountNotFoundError
@@ -34,6 +35,7 @@ class TransactionPatchRequest(BaseModel):
 
 
 NetWorthRange = Literal["1D", "1W", "1M", "3M", "6M", "YTD", "1Y", "ALL"]
+WATCHLIST_CACHE_SECONDS = 300
 
 
 def create_app(
@@ -52,6 +54,7 @@ def create_app(
     app.state.store = store or _build_default_store()
     app.state.simplefin_service = simplefin_service or _build_default_simplefin_service()
     app.state.quote_service = quote_service or YahooFinanceQuoteService()
+    app.state.watchlist_cache = {}
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
@@ -114,6 +117,26 @@ def create_app(
             return [SecuritySearchResult.model_validate(result) for result in app.state.quote_service.search(q, max(1, min(limit, 12)))]
         except MarketDataError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
+
+    @app.get("/api/watchlist/symbols", response_model=WatchlistSymbolsResponse)
+    def get_watchlist_symbols() -> WatchlistSymbolsResponse:
+        return WatchlistSymbolsResponse(symbols=app.state.store.list_watchlist_symbols())
+
+    @app.put("/api/watchlist/symbols", response_model=WatchlistResponse)
+    def replace_watchlist_symbols(request: WatchlistSymbolsRequest) -> WatchlistResponse:
+        symbols = app.state.store.replace_watchlist_symbols(request.symbols)
+        return WatchlistResponse(
+            symbols=symbols,
+            items=_watchlist_items(symbols, app.state.quote_service, app.state.store, app.state.watchlist_cache),
+        )
+
+    @app.get("/api/watchlist", response_model=WatchlistResponse)
+    def watchlist() -> WatchlistResponse:
+        symbols = app.state.store.list_watchlist_symbols()
+        return WatchlistResponse(
+            symbols=symbols,
+            items=_watchlist_items(symbols, app.state.quote_service, app.state.store, app.state.watchlist_cache),
+        )
 
     @app.post("/api/quotes/refresh", response_model=QuoteRefreshResponse)
     def refresh_quotes(force: bool = False) -> QuoteRefreshResponse:
@@ -263,22 +286,33 @@ def create_app(
 
     @app.get("/api/net-worth/history", response_model=NetWorthHistory)
     def net_worth_history(range: NetWorthRange = "1M") -> NetWorthHistory:
+        accounts = app.state.store.list_accounts()
+        holdings = app.state.store.list_holdings()
         snapshots = app.state.store.list_account_balance_snapshots() if hasattr(app.state.store, "list_account_balance_snapshots") else []
+        holdings_aware = build_holdings_aware_net_worth(accounts, holdings)
         return build_net_worth_history(
-            app.state.store.list_accounts(),
+            accounts,
             range,
             snapshots=snapshots,
             transactions=app.state.store.list_transactions(),
+            current_value_override=holdings_aware.total_value,
         )
 
     @app.get("/api/dashboard", response_model=DashboardSnapshot)
     def dashboard() -> DashboardSnapshot:
+        accounts = app.state.store.list_accounts()
+        holdings = app.state.store.list_holdings()
         transactions = app.state.store.list_transactions()
+        holdings_aware = build_holdings_aware_net_worth(accounts, holdings)
         return DashboardSnapshot(
-            accounts=app.state.store.list_accounts(),
+            accounts=accounts,
             monthly_summary=build_monthly_summary(transactions, app.state.store.budget),
             recurring_items=detect_recurring_items(transactions),
-            forecast=build_cashflow_forecast(app.state.store.list_accounts(), transactions),
+            forecast=build_cashflow_forecast(accounts, transactions),
+            asset_allocation=holdings_aware.asset_allocation,
+            investment_summary=app.state.store.portfolio_snapshot(),
+            net_worth_total=holdings_aware.total_value,
+            net_worth_uses_manual_holdings=holdings_aware.used_manual_holdings,
         )
 
     @app.get("/api/integrations/simplefin/status", response_model=SimpleFinStatus)
@@ -326,6 +360,60 @@ def _resolve_holding_quote(request: HoldingRequest, quote_service: YahooFinanceQ
         if not name:
             name = quote.name
     return request.model_copy(update={"symbol": symbol, "name": name or symbol, "market_price": market_price, "currency": currency})
+
+
+def _watchlist_items(
+    symbols: list[str],
+    quote_service: YahooFinanceQuoteService,
+    store: LocalStore | DatabaseStore,
+    cache: dict[str, tuple[datetime, WatchlistItem]],
+) -> list[WatchlistItem]:
+    return [_watchlist_item(symbol, quote_service, store, cache) for symbol in symbols]
+
+
+def _watchlist_item(
+    symbol: str,
+    quote_service: YahooFinanceQuoteService,
+    store: LocalStore | DatabaseStore,
+    cache: dict[str, tuple[datetime, WatchlistItem]] | None = None,
+) -> WatchlistItem:
+    normalized = symbol.strip().upper()
+    now = datetime.now(UTC)
+    if cache is not None:
+        cached = cache.get(normalized)
+        if cached and (now - cached[0]).total_seconds() <= WATCHLIST_CACHE_SECONDS:
+            return cached[1]
+
+    try:
+        quote = MarketQuote.model_validate(quote_service.get_quote(normalized))
+        saved = store.save_market_quote(quote)
+        sparkline = _watchlist_sparkline(normalized, quote_service)
+        item = WatchlistItem(
+            symbol=saved.symbol,
+            name=saved.name,
+            price=saved.price,
+            currency=saved.currency,
+            change_amount=saved.change_amount,
+            change_pct=saved.change_pct,
+            sparkline=sparkline,
+            provider=saved.provider,
+            as_of=saved.as_of,
+        )
+        if cache is not None:
+            cache[normalized] = (now, item)
+        return item
+    except (MarketDataError, RuntimeError, ValidationError):
+        item = WatchlistItem(symbol=normalized, name=normalized, error="Quote unavailable")
+        if cache is not None:
+            cache[normalized] = (now, item)
+        return item
+
+
+def _watchlist_sparkline(symbol: str, quote_service: YahooFinanceQuoteService) -> list[float]:
+    try:
+        return [round(float(price), 4) for price in quote_service.get_intraday_prices(symbol)]
+    except (AttributeError, MarketDataError, RuntimeError, ValidationError, TypeError, ValueError):
+        return []
 
 
 def _parse_month(month: str | None) -> date | None:

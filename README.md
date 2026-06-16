@@ -15,7 +15,7 @@ FinSight is a local-first personal finance workspace for bank-account tracking, 
 - Cash page with monthly in-flow/out-flow KPIs, available cash, net position, 30/60/90 day forecast, cash account distribution, and matching compact account rows.
 - Recap page with period support, income/spending/net cashflow, savings rate, recurring costs, notable categories, top merchants, sparse-data states, and Transactions drill-down links.
 - Spending page expansion with budget threshold watchlists, category/merchant drill-downs, recurring cost drill-downs, and period-preserving Transactions links.
-- Investments MVP with manual holdings CRUD, Yahoo Finance-backed security search, cached portfolio price refresh, portfolio value, cost basis, unrealized gain, allocation, and account grouping.
+- Investments MVP with manual holdings CRUD, Yahoo Finance-backed security search, cached portfolio price refresh, configurable watchlist cards, portfolio value, cost basis, unrealized gain, allocation, and account grouping.
 - Settings MVP with budget, category budget, forecast assumption, currency/timezone, AI privacy, and local-first controls connected to the settings API.
 - Demo seed endpoint for local development.
 
@@ -73,6 +73,13 @@ Completed:
 - Holdings can now be saved with symbol, quantity, and cost basis while the API fills missing market price/name from the latest quote.
 - `/investments` automatically refreshes holding prices when the page opens, refreshes every 15 minutes while open, and includes a page-level `Refresh prices` action; Add holding now uses a compact one-line searchable symbol picker instead of a per-holding refresh button.
 
+2026-06-15 Dashboard investments and watchlist:
+
+- Dashboard net worth and asset allocation now use holdings-aware investment values, replacing an investment account balance with that account's manual holdings total when holdings exist so the same account is not double counted.
+- Investment accounts without manual holdings still contribute their account balance, preserving synced or manually entered balance-only accounts.
+- Added persisted configurable Investments watchlist cards backed by the existing quote provider, with per-symbol quote fallback states.
+- Screenshot/PDF holdings import remains a planned preview-and-confirm flow for a later slice.
+
 ## Planned frontend navigation
 
 The current web app implements Dashboard, Cash, Spending, Investments, Recap, Transactions, Accounts, and Settings as MVP pages.
@@ -80,7 +87,7 @@ The current web app implements Dashboard, Cash, Spending, Investments, Recap, Tr
 - Dashboard (`/dashboard`) for the financial command center and cross-page entry points.
 - Cash (`/cash`) for monthly inflow/outflow, available cash, net short-term position, cash account distribution, and 30/60/90 day cashflow risk.
 - Spending (`/spending`) for income, expenses, budget usage, merchant/category insights, and recurring costs.
-- Investments (`/investments`) for manual holdings, searchable stock/ETF selection, cached quote-backed market prices, portfolio value, cost basis, unrealized gains, allocation, and account grouping.
+- Investments (`/investments`) for manual holdings, searchable stock/ETF selection, configurable market watchlist cards, cached quote-backed market prices, portfolio value, cost basis, unrealized gains, allocation, and account grouping.
 - Recap (`/recap`) for period income, spending, net cashflow, savings rate, recurring costs, notable categories, and merchant summaries.
 - Transactions (`/transactions`) for transaction drill-down, review, categorization, local rule creation, compact latest-month account previews, and monthly history dialogs.
 - Accounts (`/accounts`) for SimpleFIN Bridge status, cash account summaries, credit-card obligations, manual data entry, multi-file historical statement import, compact account rows, account detail/update modals, and sync health.
@@ -130,4 +137,4 @@ npm run build:web
 - The backend defaults to an in-process local store when `FINSIGHT_DATABASE_URL` is unset. Set `FINSIGHT_DATABASE_URL=postgresql+psycopg://finsight:finsight@localhost:5432/finsight` to use the SQLAlchemy/PostgreSQL store.
 - `apps/api/schema.sql` documents the Postgres-compatible schema used by the persistence layer.
 - SimpleFIN credentials are local-only. By default the access URL is stored in `~/.finsight/simplefin_credentials.json`; set `FINSIGHT_SIMPLEFIN_CREDENTIAL_PATH` to choose a different local secret file.
-- External market-data valuation such as yfinance, AI insight generation, Redis workers, KMS, object storage, and SaaS auth are intentionally deferred.
+- AI insight generation, Redis workers, KMS, object storage, SaaS auth, and richer external market-data features beyond the current yfinance-backed quotes are intentionally deferred.

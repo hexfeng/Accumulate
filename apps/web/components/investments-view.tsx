@@ -1,15 +1,16 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { createHolding, deleteHolding, getQuote, refreshQuotes, searchSecurities, updateHolding } from "@/lib/api";
+import { createHolding, deleteHolding, getQuote, getWatchlist, refreshQuotes, replaceWatchlistSymbols, searchSecurities, updateHolding } from "@/lib/api";
 import { formatCurrency, formatPercent } from "@/lib/format";
-import type { Account, Holding, HoldingInput, PortfolioSnapshot, SecuritySearchResult } from "@/lib/types";
+import type { Account, Holding, HoldingInput, PortfolioSnapshot, SecuritySearchResult, WatchlistItem, WatchlistResponse } from "@/lib/types";
 
 type InvestmentsViewProps = {
   accounts: Account[];
   initialHoldings: Holding[];
   initialPortfolio: PortfolioSnapshot;
+  initialWatchlist?: WatchlistResponse;
 };
 
 type HoldingDraft = HoldingInput;
@@ -24,8 +25,15 @@ const EMPTY_DRAFT: HoldingDraft = {
   currency: "CAD"
 };
 
-export function InvestmentsView({ accounts, initialHoldings, initialPortfolio }: InvestmentsViewProps) {
+const EMPTY_WATCHLIST: WatchlistResponse = { symbols: [], items: [] };
+
+export function InvestmentsView({ accounts, initialHoldings, initialPortfolio, initialWatchlist = EMPTY_WATCHLIST }: InvestmentsViewProps) {
   const [holdings, setHoldings] = useState(initialHoldings);
+  const [watchlist, setWatchlist] = useState(initialWatchlist);
+  const [watchlistDraft, setWatchlistDraft] = useState("");
+  const [isWatchlistSaving, setIsWatchlistSaving] = useState(false);
+  const [watchlistError, setWatchlistError] = useState<string | null>(null);
+  const watchlistSavingRef = useRef(false);
   const [editingHolding, setEditingHolding] = useState<Holding | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isRefreshingPrices, setIsRefreshingPrices] = useState(false);
@@ -59,6 +67,24 @@ export function InvestmentsView({ accounts, initialHoldings, initialPortfolio }:
     }, 15 * 60 * 1000);
     return () => window.clearInterval(intervalId);
   }, [refreshPortfolioPrices]);
+
+  useEffect(() => {
+    let isMounted = true;
+    getWatchlist()
+      .then((updated) => {
+        if (isMounted) {
+          setWatchlist(updated);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setWatchlistError("Could not load watchlist. Try again.");
+        }
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   function openAddDialog() {
     setEditingHolding(null);
@@ -99,13 +125,50 @@ export function InvestmentsView({ accounts, initialHoldings, initialPortfolio }:
     setHoldings((current) => current.filter((item) => item.id !== holding.id));
   }
 
+  async function addWatchlistSymbol(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const symbol = watchlistDraft.trim().toUpperCase();
+    if (!symbol || watchlist.symbols.includes(symbol)) {
+      setWatchlistDraft("");
+      return;
+    }
+    const saved = await saveWatchlistSymbols([...watchlist.symbols, symbol]);
+    if (saved) {
+      setWatchlistDraft("");
+    }
+  }
+
+  async function removeWatchlistSymbol(symbol: string) {
+    await saveWatchlistSymbols(watchlist.symbols.filter((item) => item !== symbol));
+  }
+
+  async function saveWatchlistSymbols(symbols: string[]) {
+    if (watchlistSavingRef.current) {
+      return false;
+    }
+    watchlistSavingRef.current = true;
+    setIsWatchlistSaving(true);
+    setWatchlistError(null);
+    try {
+      const updated = await replaceWatchlistSymbols(symbols);
+      setWatchlist(updated);
+      return true;
+    } catch {
+      setWatchlistError("Could not update watchlist. Try again.");
+      return false;
+    } finally {
+      watchlistSavingRef.current = false;
+      setIsWatchlistSaving(false);
+    }
+  }
+
   return (
     <section className="page-stack investments-page" aria-label="Investments workspace">
       <header className="page-header">
         <div>
           <span className="section-eyebrow">Manual holdings MVP</span>
           <h1>Investments</h1>
-          <p>Track holdings, cost basis, portfolio value, allocation, and account grouping before external market data is connected.</p>
+          <p>Track holdings, cost basis, live market prices, allocation, and account grouping in one workspace.</p>
         </div>
         <div className="investments-header-actions">
           {quoteStatus ? <span>{quoteStatus}</span> : null}
@@ -124,6 +187,16 @@ export function InvestmentsView({ accounts, initialHoldings, initialPortfolio }:
         <MetricCard label="Unrealized gain" value={formatCurrency(portfolio.unrealized_gain)} meta={formatPercent(portfolio.unrealized_gain_pct)} />
         <MetricCard label="Accounts" value={String(portfolio.accounts.length)} meta="Investment groups" />
       </div>
+
+      <WatchlistPanel
+        draft={watchlistDraft}
+        error={watchlistError}
+        isSaving={isWatchlistSaving}
+        items={watchlist.items}
+        onAdd={addWatchlistSymbol}
+        onDraftChange={setWatchlistDraft}
+        onRemove={removeWatchlistSymbol}
+      />
 
       <div className="spending-detail-grid">
         <article className="panel">
@@ -238,6 +311,101 @@ function MetricCard({ label, meta, value }: { label: string; meta: string; value
       <strong>{value}</strong>
       <small>{meta}</small>
     </article>
+  );
+}
+
+function WatchlistPanel({
+  draft,
+  error,
+  isSaving,
+  items,
+  onAdd,
+  onDraftChange,
+  onRemove
+}: {
+  draft: string;
+  error: string | null;
+  isSaving: boolean;
+  items: WatchlistItem[];
+  onAdd: (event: React.FormEvent<HTMLFormElement>) => void;
+  onDraftChange: (value: string) => void;
+  onRemove: (symbol: string) => void | Promise<void>;
+}) {
+  return (
+    <article className="panel watchlist-panel">
+      <div className="panel-heading compact watchlist-heading">
+        <h2>Watchlist</h2>
+        <form className="watchlist-form" onSubmit={onAdd}>
+          <label>
+            <span>Add watchlist symbol</span>
+            <input value={draft} onChange={(event) => onDraftChange(event.target.value)} />
+          </label>
+          <button type="submit" disabled={isSaving}>Add symbol</button>
+        </form>
+      </div>
+      {error ? <p className="watchlist-error" role="alert">{error}</p> : null}
+      <div className="watchlist-strip">
+        {items.map((item) => (
+          <WatchlistCard isSaving={isSaving} item={item} key={item.symbol} onRemove={() => void onRemove(item.symbol)} />
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function WatchlistCard({ isSaving, item, onRemove }: { isSaving: boolean; item: WatchlistItem; onRemove: () => void }) {
+  const change = item.change_pct;
+  const isPositive = (change ?? 0) >= 0;
+  const directionLabel = change == null || change === 0 ? "Flat" : isPositive ? "Up" : "Down";
+  const previousClose = item.price != null && item.change_amount != null ? item.price - item.change_amount : null;
+  const sparkline = buildSparklineChart(item.sparkline, previousClose);
+  return (
+    <div className={`watchlist-card ${isPositive ? "positive" : "negative"}`} role="group" aria-label={`${item.symbol} watchlist card`}>
+      <button type="button" className="watchlist-remove" onClick={onRemove} aria-label={`Remove ${item.symbol}`} disabled={isSaving} />
+      <div className="watchlist-card-header">
+        <span>{watchlistDisplayName(item)}</span>
+      </div>
+      {item.error ? (
+        <strong>{item.error}</strong>
+      ) : (
+        <>
+          <div className="watchlist-market-row">
+            <div className="watchlist-market-values">
+              <strong>{formatMarketNumber(item.price ?? 0)}</strong>
+              {change == null || item.change_amount == null ? (
+                <small>Change unavailable</small>
+              ) : (
+                <>
+                  <small className="watchlist-change-amount">{formatParentheticalChangeAmount(item.change_amount)}</small>
+                  <div className="watchlist-change-row">
+                    <span className={`watchlist-change-pct ${isPositive ? "positive" : "negative"}`}>{formatSignedPercent(change)}</span>
+                  </div>
+                </>
+              )}
+            </div>
+            {change == null || item.change_amount == null ? null : (
+              <span className={`watchlist-direction-icon ${directionLabel.toLowerCase()}`} aria-label={directionLabel} />
+            )}
+          </div>
+          <svg className={`watchlist-spark ${isPositive ? "positive" : "negative"}`} viewBox="0 0 140 42" preserveAspectRatio="none" aria-hidden="true">
+            {sparkline.previousCloseY ? (
+              <line
+                className="watchlist-previous-close-line"
+                stroke="rgba(112, 122, 138, 0.62)"
+                strokeDasharray="3 4"
+                strokeLinecap="round"
+                strokeWidth="1.1"
+                x1="0"
+                x2="140"
+                y1={sparkline.previousCloseY}
+                y2={sparkline.previousCloseY}
+              />
+            ) : null}
+            <polyline points={sparkline.points} />
+          </svg>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -424,6 +592,99 @@ function formatExchange(exchange?: string | null) {
     return "TSX";
   }
   return normalized.length <= 4 ? upper : normalized;
+}
+
+function formatMarketNumber(value: number) {
+  return new Intl.NumberFormat("en-CA", { maximumFractionDigits: 2, minimumFractionDigits: 2 }).format(value);
+}
+
+function formatChangeAmount(value?: number | null) {
+  if (value == null) {
+    return "";
+  }
+  const sign = value >= 0 ? "+" : "";
+  return `${sign}${formatMarketNumber(value)}`;
+}
+
+function formatParentheticalChangeAmount(value?: number | null) {
+  const amount = formatChangeAmount(value);
+  return amount ? `(${amount})` : "";
+}
+
+function formatSignedPercent(value: number) {
+  const sign = value >= 0 ? "+" : "";
+  return `${sign}${value.toFixed(2)}%`;
+}
+
+function formatWatchlistMeta(item: WatchlistItem) {
+  const parts = [item.provider, formatWatchlistTime(item.as_of)].filter(Boolean);
+  return parts.join(" · ");
+}
+
+function watchlistDisplayName(item: WatchlistItem) {
+  const indexNames: Record<string, string> = {
+    "^DJI": "Dow Jones",
+    "^GSPC": "S&P 500",
+    "^IXIC": "Nasdaq",
+    "^RUT": "Russell",
+    "^GSPTSE": "TSX",
+    "MU": "Micron"
+  };
+  return indexNames[item.symbol] ?? item.name ?? item.symbol;
+}
+
+function formatWatchlistTime(value?: string | null) {
+  if (!value) {
+    return "";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return new Intl.DateTimeFormat("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "America/Toronto"
+  }).format(date);
+}
+
+function buildSparklineChart(values?: number[], previousClose?: number | null) {
+  const width = 140;
+  const height = 42;
+  const verticalPadding = 4;
+  const points = values?.filter((value) => Number.isFinite(value)) ?? [];
+  if (points.length < 2) {
+    return {
+      points: `0,${height / 2} ${roundPoint(width / 3)},${height / 2} ${roundPoint((width / 3) * 2)},${height / 2} ${width},${height / 2}`,
+      previousCloseY: null
+    };
+  }
+  const hasPreviousClose = previousClose != null && Number.isFinite(previousClose);
+  const scalePoints = hasPreviousClose ? [...points, previousClose] : points;
+  const min = Math.min(...scalePoints);
+  const max = Math.max(...scalePoints);
+  const range = max - min;
+  if (range === 0) {
+    return {
+      points: points.map((_, index) => `${roundPoint((index / Math.max(points.length - 1, 1)) * width)},${height / 2}`).join(" "),
+      previousCloseY: hasPreviousClose ? roundPoint(height / 2) : null
+    };
+  }
+  const drawableHeight = height - verticalPadding * 2;
+  const yForValue = (value: number) => roundPoint(height - verticalPadding - ((value - min) / range) * drawableHeight);
+  return {
+    points: points
+      .map((value, index) => {
+        const x = (index / Math.max(points.length - 1, 1)) * width;
+        return `${roundPoint(x)},${yForValue(value)}`;
+      })
+      .join(" "),
+    previousCloseY: hasPreviousClose ? yForValue(previousClose) : null
+  };
+}
+
+function roundPoint(value: number) {
+  return Number(value.toFixed(2)).toString();
 }
 
 function buildPortfolioSnapshot(holdings: Holding[], fallback: PortfolioSnapshot, investmentAccounts: Account[]): PortfolioSnapshot {

@@ -1,4 +1,13 @@
-import type { BudgetSettings, DashboardSnapshot, Holding, NetWorthHistory, NetWorthRange, PortfolioSnapshot, Transaction } from "./types";
+import type { BudgetSettings, DashboardSnapshot, Holding, NetWorthHistory, NetWorthRange, PortfolioSnapshot, Transaction, WatchlistResponse } from "./types";
+
+export const demoPortfolio: PortfolioSnapshot = {
+  total_value: 1250,
+  total_cost: 1100,
+  unrealized_gain: 150,
+  unrealized_gain_pct: 13.64,
+  allocation: [{ label: "VFV.TO", value: 1250, percent: 100 }],
+  accounts: [{ account_id: "tfsa", account_name: "TFSA", value: 1250, holdings_count: 1 }]
+};
 
 export const demoDashboard: DashboardSnapshot = {
   accounts: [
@@ -11,6 +20,9 @@ export const demoDashboard: DashboardSnapshot = {
     { label: "ETF", percent: 33, tone: "etf", is_mock: true },
     { label: "Cash", percent: 25, tone: "cash", is_mock: true }
   ],
+  investment_summary: demoPortfolio,
+  net_worth_total: 14540,
+  net_worth_uses_manual_holdings: false,
   monthly_summary: {
     month: "2026-05",
     total_income: 5200,
@@ -85,13 +97,15 @@ export const demoHoldings: Holding[] = [
   }
 ];
 
-export const demoPortfolio: PortfolioSnapshot = {
-  total_value: 1250,
-  total_cost: 1100,
-  unrealized_gain: 150,
-  unrealized_gain_pct: 13.64,
-  allocation: [{ label: "VFV.TO", value: 1250, percent: 100 }],
-  accounts: [{ account_id: "tfsa", account_name: "TFSA", value: 1250, holdings_count: 1 }]
+export const demoWatchlist: WatchlistResponse = {
+  symbols: ["^DJI", "^GSPC", "^IXIC", "^RUT", "^GSPTSE"],
+  items: [
+    { symbol: "^DJI", name: "Dow Jones", price: 51202.26, currency: "USD", change_amount: 353.51, change_pct: 0.7, provider: "demo", as_of: "2026-06-12T13:00:00Z" },
+    { symbol: "^GSPC", name: "S&P 500", price: 7431.46, currency: "USD", change_amount: 37.16, change_pct: 0.5, provider: "demo", as_of: "2026-06-12T13:00:00Z" },
+    { symbol: "^IXIC", name: "Nasdaq", price: 25888.84, currency: "USD", change_amount: 79.18, change_pct: 0.31, provider: "demo", as_of: "2026-06-12T13:00:00Z" },
+    { symbol: "^RUT", name: "Russell 2000", price: 2943.99, currency: "USD", change_amount: 22.96, change_pct: 0.79, provider: "demo", as_of: "2026-06-12T13:00:00Z" },
+    { symbol: "^GSPTSE", name: "TSX", price: 34937.85, currency: "CAD", change_amount: 266.39, change_pct: 0.77, provider: "demo", as_of: "2026-06-12T13:00:00Z" }
+  ]
 };
 
 const NET_WORTH_RANGES: NetWorthRange[] = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y", "ALL"];

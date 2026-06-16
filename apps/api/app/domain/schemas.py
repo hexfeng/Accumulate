@@ -72,8 +72,36 @@ class MarketQuote(BaseModel):
     name: str
     price: float
     currency: str = "CAD"
+    change_amount: float | None = None
+    change_pct: float | None = None
     provider: str
     as_of: str
+
+
+class WatchlistItem(BaseModel):
+    symbol: str
+    name: str
+    price: float | None = None
+    currency: str = "CAD"
+    change_amount: float | None = None
+    change_pct: float | None = None
+    sparkline: list[float] = Field(default_factory=list)
+    provider: str | None = None
+    as_of: str | None = None
+    error: str | None = None
+
+
+class WatchlistResponse(BaseModel):
+    symbols: list[str]
+    items: list[WatchlistItem]
+
+
+class WatchlistSymbolsRequest(BaseModel):
+    symbols: list[str]
+
+
+class WatchlistSymbolsResponse(BaseModel):
+    symbols: list[str]
 
 
 class SecuritySearchResult(BaseModel):
@@ -241,8 +269,18 @@ class NetWorthHistory(BaseModel):
 
 class AssetAllocationItem(BaseModel):
     label: str
-    value: float
+    value: float = 0
     percent: float
+    tone: str = "stocks"
+    is_mock: bool = False
+
+
+class HoldingsAwareNetWorthSnapshot(BaseModel):
+    total_value: float
+    investment_value: float
+    asset_allocation: list[AssetAllocationItem]
+    used_manual_holdings: bool = False
+    manual_holding_account_ids: list[str] = Field(default_factory=list)
 
 
 class PortfolioAccountSummary(BaseModel):
@@ -266,3 +304,7 @@ class DashboardSnapshot(BaseModel):
     monthly_summary: MonthlySummary
     recurring_items: list[RecurringItem]
     forecast: CashflowForecast
+    asset_allocation: list[AssetAllocationItem] = Field(default_factory=list)
+    investment_summary: PortfolioSnapshot | None = None
+    net_worth_total: float = 0
+    net_worth_uses_manual_holdings: bool = False

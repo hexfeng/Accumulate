@@ -35,12 +35,21 @@ const MOCK_ASSET_ALLOCATION: AssetAllocationItem[] = [
   { label: "Cash", percent: 25, tone: "cash", is_mock: true }
 ];
 
+type AllocationDisplaySegment = Pick<AssetAllocationItem, "label" | "tone"> & {
+  displayPercent: number;
+};
+
 export function DashboardView({ initialNetWorthHistory, snapshot }: Props) {
   const cashPosition = snapshot.accounts
     .filter((account) => ["checking", "savings", "cash"].includes(account.type))
     .reduce((sum, account) => sum + account.balance, 0);
   const accountsOnlyNetWorth = snapshot.accounts.reduce((sum, account) => sum + account.balance, 0);
-  const totalNetWorth = initialNetWorthHistory.current_value || accountsOnlyNetWorth;
+  const totalNetWorth = initialNetWorthHistory.current_value ?? snapshot.net_worth_total ?? accountsOnlyNetWorth;
+  const investmentValue =
+    snapshot.investment_summary?.total_value ??
+    snapshot.accounts
+      .filter((account) => account.type === "investment")
+      .reduce((sum, account) => sum + Math.max(account.balance, 0), 0);
   const yesterdayChange = getYesterdayChange(initialNetWorthHistory, totalNetWorth);
   const goalProgressPct = Math.min((totalNetWorth / DEFAULT_GOAL.targetAmount) * 100, 100);
   const highestRisk = getHighestCashflowRisk(snapshot.forecast.points);
@@ -48,9 +57,11 @@ export function DashboardView({ initialNetWorthHistory, snapshot }: Props) {
   const topCategory = snapshot.monthly_summary.categories[0];
   const currentPeriod = formatPeriod(snapshot.monthly_summary.month);
   const currentPeriodShort = formatShortPeriod(snapshot.monthly_summary.month);
-  const assetAllocation = normalizeAssetAllocation(snapshot.asset_allocation?.length ? snapshot.asset_allocation : MOCK_ASSET_ALLOCATION);
+  const realAllocation = snapshot.asset_allocation?.filter((asset) => asset.value == null || asset.value !== 0) ?? [];
+  const assetAllocation = normalizeAssetAllocation(realAllocation.length ? realAllocation : MOCK_ASSET_ALLOCATION);
+  const allocationDisplaySegments = buildAllocationDisplaySegments(assetAllocation);
   const hasMockAllocation = assetAllocation.some((asset) => asset.is_mock);
-  const allocationLabel = assetAllocation.map((asset) => `${asset.label} ${asset.percent}%`).join(", ");
+  const allocationLabel = assetAllocation.map((asset) => `${asset.label} ${Math.round(asset.percent)}%`).join(", ");
   const hasSimpleFinAccounts = snapshot.accounts.some((account) => account.source === "simplefin");
 
   return (
@@ -67,7 +78,11 @@ export function DashboardView({ initialNetWorthHistory, snapshot }: Props) {
             <span>{yesterdayChange.percentLabel}</span>
             <span>vs yesterday</span>
           </div>
-          <p>Accounts-only estimate {"\u00b7"} {hasMockAllocation ? "Mock allocation until holdings connect" : "Holdings allocation connected"}</p>
+          <p>
+            <span>{snapshot.net_worth_uses_manual_holdings ? "Holdings-aware estimate" : "Accounts and synced balances"}</span>
+            {" \u00b7 "}
+            <span>{hasMockAllocation ? "Mock allocation until holdings connect" : "Real allocation connected"}</span>
+          </p>
         </div>
 
         <Link className="goal-card" href="/settings?section=goals" aria-label="Open goal settings">
@@ -94,11 +109,11 @@ export function DashboardView({ initialNetWorthHistory, snapshot }: Props) {
             <small>{hasMockAllocation ? "Placeholder until investments are added" : "Based on connected holdings"}</small>
           </div>
           <div className="asset-distribution-track" role="img" aria-label={allocationLabel}>
-            {assetAllocation.map((asset) => (
+            {allocationDisplaySegments.map((asset) => (
               <span
                 className={`asset-segment asset-${asset.tone}`}
                 key={asset.label}
-                style={{ width: `${asset.percent}%` }}
+                style={{ width: `${asset.displayPercent}%` }}
               />
             ))}
           </div>
@@ -128,7 +143,13 @@ export function DashboardView({ initialNetWorthHistory, snapshot }: Props) {
 
       <div className="kpi-nav-grid" aria-label="Dashboard navigation metrics">
         <DashboardKpiCard href="/cash" label="Cash" value={formatCurrency(cashPosition)} meta="90d projected positive" tone="green" />
-        <DashboardKpiCard href="/investments" label="Investments" value="Not set" meta="Add holdings" tone="indigo" />
+        <DashboardKpiCard
+          href="/investments"
+          label="Investments"
+          value={investmentValue > 0 ? formatCurrency(investmentValue) : "Not set"}
+          meta={investmentValue > 0 ? "Portfolio value" : "Add holdings"}
+          tone="indigo"
+        />
         <DashboardKpiCard href="/spending" label="Spending" value={formatCurrency(snapshot.monthly_summary.total_spending)} meta={`${formatPercent(snapshot.monthly_summary.budget_used_pct)} of budget`} tone="coral" />
         <DashboardKpiCard href="/accounts" label="Accounts" value={`${snapshot.accounts.length} active`} meta="View data health" tone="green" />
         <DashboardKpiCard href={`/recap?period=${snapshot.monthly_summary.month}`} label="Recap" value={`${currentPeriodShort} ready`} meta="Review month" tone="indigo" />
@@ -322,12 +343,22 @@ function formatShortPeriod(month: string) {
 }
 
 function normalizeAssetAllocation(items: AssetAllocationItem[]) {
-  const total = items.reduce((sum, item) => sum + item.percent, 0);
-  if (total <= 0) {
+  const positiveTotal = items.filter((item) => item.percent > 0).reduce((sum, item) => sum + item.percent, 0);
+  if (positiveTotal <= 0) {
     return MOCK_ASSET_ALLOCATION;
   }
-  return items.map((item) => ({
-    ...item,
-    percent: Math.round((item.percent / total) * 100)
+  return items;
+}
+
+function buildAllocationDisplaySegments(items: AssetAllocationItem[]): AllocationDisplaySegment[] {
+  const positiveItems = items.filter((item) => item.percent > 0);
+  const positiveTotal = positiveItems.reduce((sum, item) => sum + item.percent, 0);
+  if (positiveTotal <= 0) {
+    return [];
+  }
+  return positiveItems.map((item) => ({
+    label: item.label,
+    tone: item.tone,
+    displayPercent: Math.round((item.percent / positiveTotal) * 10000) / 100
   }));
 }

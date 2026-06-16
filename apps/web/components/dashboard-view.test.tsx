@@ -118,4 +118,60 @@ describe("DashboardView", () => {
     expect(screen.getByText("$11,000.00")).toBeInTheDocument();
     expect(container.querySelector(".chart-hover-guide")).toBeInTheDocument();
   });
+
+  it("renders holdings-aware net worth, real allocation, and investment KPI", () => {
+    const { container } = render(
+      <DashboardView
+        initialNetWorthHistory={{ ...demoNetWorthHistoryByRange["1M"], current_value: 17500 }}
+        snapshot={{
+          ...demoDashboard,
+          net_worth_total: 17500,
+          net_worth_uses_manual_holdings: true,
+          investment_summary: {
+            total_value: 12000,
+            total_cost: 8000,
+            unrealized_gain: 4000,
+            unrealized_gain_pct: 50,
+            allocation: [{ label: "VFV.TO", value: 12000, percent: 100 }],
+            accounts: [{ account_id: "tfsa", account_name: "TFSA", value: 12000, holdings_count: 1 }]
+          },
+          asset_allocation: [
+            { label: "Cash", value: 2000, percent: 11.11, tone: "cash" },
+            { label: "ETFs", value: 12000, percent: 66.67, tone: "etf" },
+            { label: "Investment balances", value: 4000, percent: 22.22, tone: "stocks" }
+          ]
+        }}
+      />
+    );
+
+    expect(screen.getAllByText("$17,500.00").length).toBeGreaterThan(0);
+    expect(screen.getByText("Holdings-aware estimate")).toBeInTheDocument();
+    expect(screen.getByText("Asset mix")).toBeInTheDocument();
+    expect(screen.queryByText("Mock asset mix")).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Cash 11%, ETFs 67%, Investment balances 22%" })).toBeInTheDocument();
+    const segmentWidths = Array.from(container.querySelectorAll<HTMLElement>(".asset-segment"))
+      .map((segment) => segment.style.width)
+      .filter(Boolean);
+    expect(segmentWidths.every((width) => !width.startsWith("-"))).toBe(true);
+    expect(segmentWidths).toEqual(["11.11%", "66.67%", "22.22%"]);
+    expect(screen.getByText("$12,000.00")).toBeInTheDocument();
+    expect(screen.getByText("Portfolio value")).toBeInTheDocument();
+  });
+
+  it("keeps zero net worth as a valid displayed value", () => {
+    render(
+      <DashboardView
+        initialNetWorthHistory={{ ...demoNetWorthHistoryByRange["1M"], current_value: 0, points: [] }}
+        snapshot={{
+          ...demoDashboard,
+          accounts: [
+            { id: "cash", user_id: "local-user", name: "Cash", type: "cash", balance: 1000, currency: "CAD", source: "manual" }
+          ],
+          net_worth_total: 5000
+        }}
+      />
+    );
+
+    expect(screen.getByRole("link", { name: "Open investments from total net worth" })).toHaveTextContent("$0.00");
+  });
 });

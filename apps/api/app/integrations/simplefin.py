@@ -216,13 +216,8 @@ class SimpleFinService:
         try:
             synced_at = self.now()
             end_at = _parse_sync_datetime(synced_at)
-            existing_coverage = store.simplefin_transaction_coverage() if hasattr(store, "simplefin_transaction_coverage") else {"start_date": None, "end_date": None}
-            should_backfill = not existing_coverage.get("start_date") or not existing_coverage.get("end_date")
-            if should_backfill:
-                self._sync_windows(store, access_url, synced_at, _initial_backfill_windows(end_at))
-            else:
-                start_at = end_at - timedelta(days=SIMPLEFIN_TRANSACTION_LOOKBACK_DAYS)
-                self._sync_windows(store, access_url, synced_at, [(start_at, end_at)])
+            start_at = end_at - timedelta(days=SIMPLEFIN_TRANSACTION_LOOKBACK_DAYS)
+            self._sync_windows(store, access_url, synced_at, [(start_at, end_at)])
             _reclassify_store_transactions(store)
         except SimpleFinError as error:
             return self._record_error(error)
@@ -234,7 +229,7 @@ class SimpleFinService:
                 "status": "synced",
                 "message": "SimpleFIN sync complete.",
                 "last_synced_at": synced_at,
-                "backfill_completed_at": synced_at if should_backfill else state.get("backfill_completed_at"),
+                "backfill_completed_at": state.get("backfill_completed_at"),
                 "transaction_coverage_start": coverage.get("start_date"),
                 "transaction_coverage_end": coverage.get("end_date"),
                 "last_error": None,

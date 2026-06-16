@@ -146,6 +146,9 @@ class FakeQuoteService:
             "as_of": "2026-06-12T13:00:00Z",
         }
 
+    def get_intraday_prices(self, symbol: str):
+        return [100, 101.5, 103]
+
     def search(self, query: str, max_results: int = 8):
         self.search_calls.append(query)
         return [
@@ -213,6 +216,8 @@ def test_quote_endpoint_returns_latest_market_price():
         "name": "Vanguard S&P 500 Index ETF",
         "price": 132.45,
         "currency": "CAD",
+        "change_amount": None,
+        "change_pct": None,
         "provider": "test",
         "as_of": "2026-06-12T13:00:00Z",
     }
@@ -540,3 +545,94 @@ def test_account_delete_allows_synced_source_account_and_removes_transactions():
     assert response.json() == {"deleted_account_id": "cibc-chequing"}
     assert all(account["id"] != "cibc-chequing" for account in client.get("/api/accounts").json())
     assert all(transaction["account_id"] != "cibc-chequing" for transaction in client.get("/api/transactions").json())
+
+
+def test_dashboard_and_net_worth_use_holdings_aware_investment_value():
+    client = make_client()
+    client.post("/api/accounts", json={"name": "TFSA", "type": "investment", "balance": 10000, "currency": "CAD"})
+    client.post("/api/accounts", json={"name": "RRSP", "type": "investment", "balance": 4000, "currency": "CAD"})
+    client.post("/api/accounts", json={"name": "Cash", "type": "checking", "balance": 2000, "currency": "CAD"})
+    client.post("/api/accounts", json={"name": "Visa", "type": "credit_card", "balance": -500, "currency": "CAD"})
+    client.post(
+        "/api/holdings",
+        json={
+            "account_id": "tfsa",
+            "symbol": "VFV.TO",
+            "name": "Vanguard S&P 500 ETF",
+            "quantity": 80,
+            "average_cost": 100,
+            "market_price": 150,
+            "currency": "CAD",
+        },
+    )
+
+    dashboard = client.get("/api/dashboard").json()
+    history = client.get("/api/net-worth/history?range=1M").json()
+
+    assert dashboard["net_worth_total"] == 17500
+    assert dashboard["net_worth_uses_manual_holdings"] is True
+    assert dashboard["investment_summary"]["total_value"] == 12000
+    assert [(item["label"], item["value"], item["percent"]) for item in dashboard["asset_allocation"]] == [
+        ("Cash", 2000, 11.11),
+        ("ETFs", 12000, 66.67),
+        ("Investment balances", 4000, 22.22),
+    ]
+    assert history["current_value"] == 17500
+    assert history["points"][-1]["value"] == 17500
+
+
+def test_watchlist_returns_default_symbols_with_quotes_and_symbol_errors():
+    class PartialQuoteService(FakeQuoteService):
+        def get_quote(self, symbol: str):
+            if symbol.strip().upper() == "^RUT":
+                raise RuntimeError("rate limited")
+            return {
+                "symbol": symbol.strip().upper(),
+                "name": f"{symbol.strip().upper()} Index",
+                "price": 1000,
+                "currency": "USD",
+                "change_amount": 12.34,
+                "change_pct": 1.25,
+                "provider": "test",
+                "as_of": "2026-06-12T13:00:00Z",
+            }
+
+    client = TestClient(create_app(store=LocalStore(), quote_service=PartialQuoteService()))
+
+    response = client.get("/api/watchlist")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert [item["symbol"] for item in data["items"]] == ["^DJI", "^GSPC", "^IXIC", "^RUT", "^GSPTSE"]
+    assert data["items"][0]["price"] == 1000
+    assert data["items"][0]["change_amount"] == 12.34
+    assert data["items"][0]["change_pct"] == 1.25
+    assert data["items"][0]["provider"] == "test"
+    assert data["items"][0]["as_of"] == "2026-06-12T13:00:00Z"
+    assert data["items"][0]["sparkline"] == [100, 101.5, 103]
+    assert data["items"][3]["price"] is None
+    assert data["items"][3]["error"] == "Quote unavailable"
+
+
+def test_watchlist_reuses_short_cache_for_repeated_page_loads():
+    quote_service = FakeQuoteService()
+    client = TestClient(create_app(store=LocalStore(), quote_service=quote_service))
+
+    first_response = client.get("/api/watchlist")
+    second_response = client.get("/api/watchlist")
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 200
+    assert first_response.json() == second_response.json()
+    assert quote_service.quote_calls == ["^DJI", "^GSPC", "^IXIC", "^RUT", "^GSPTSE"]
+
+
+def test_watchlist_symbols_can_be_replaced():
+    client = TestClient(create_app(store=LocalStore(), quote_service=FakeQuoteService()))
+
+    response = client.put("/api/watchlist/symbols", json={"symbols": ["vfv.to", " CASH.TO ", "vfv.to"]})
+
+    assert response.status_code == 200
+    assert response.json()["symbols"] == ["VFV.TO", "CASH.TO"]
+    assert [item["symbol"] for item in response.json()["items"]] == ["VFV.TO", "CASH.TO"]
+    assert client.get("/api/watchlist/symbols").json()["symbols"] == ["VFV.TO", "CASH.TO"]

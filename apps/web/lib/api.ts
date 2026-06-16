@@ -1,5 +1,5 @@
-import { demoHoldings, demoPortfolio, demoSettings } from "./demo-data";
-import type { Account, AccountDeleteResponse, AccountInput, BudgetSettings, CashflowForecast, DashboardSnapshot, Holding, HoldingDeleteResponse, HoldingInput, MarketQuote, MonthlySummary, NetWorthHistory, NetWorthRange, PortfolioSnapshot, QuoteRefreshResponse, SecuritySearchResult, SimpleFinActionResponse, SimpleFinStatus, StatementImportResponse, Transaction } from "./types";
+import { demoHoldings, demoPortfolio, demoSettings, demoWatchlist } from "./demo-data";
+import type { Account, AccountDeleteResponse, AccountInput, BudgetSettings, CashflowForecast, DashboardSnapshot, Holding, HoldingDeleteResponse, HoldingInput, MarketQuote, MonthlySummary, NetWorthHistory, NetWorthRange, PortfolioSnapshot, QuoteRefreshResponse, SecuritySearchResult, SimpleFinActionResponse, SimpleFinStatus, StatementImportResponse, Transaction, WatchlistResponse } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 const EMPTY_FORECAST: CashflowForecast = {
@@ -73,6 +73,14 @@ export function getHoldings(): Promise<Holding[]> {
 
 export function getPortfolio(): Promise<PortfolioSnapshot> {
   return getJson("/api/portfolio", demoPortfolio);
+}
+
+export function getWatchlist(): Promise<WatchlistResponse> {
+  return getJson("/api/watchlist", demoWatchlist);
+}
+
+export async function replaceWatchlistSymbols(symbols: string[]): Promise<WatchlistResponse> {
+  return sendJson<WatchlistResponse>("/api/watchlist/symbols", "PUT", { symbols });
 }
 
 export async function getQuote(symbol: string): Promise<MarketQuote> {

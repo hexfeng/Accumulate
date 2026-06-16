@@ -96,14 +96,42 @@ class YahooFinanceQuoteService:
 
         name = str(info.get("longName") or info.get("shortName") or normalized_symbol)
         currency = str(fast_info.get("currency") or info.get("currency") or "CAD").upper()
+        previous_close = _first_number(
+            fast_info,
+            "previous_close",
+            "previousClose",
+            "regular_market_previous_close",
+            "regularMarketPreviousClose",
+        )
+        change_amount = round(price - previous_close, 4) if previous_close and previous_close > 0 else None
+        change_pct = round((change_amount / previous_close) * 100, 4) if change_amount is not None and previous_close else None
         return MarketQuote(
             symbol=normalized_symbol,
             name=name,
             price=round(price, 4),
             currency=currency,
+            change_amount=change_amount,
+            change_pct=change_pct,
             provider=self.provider,
             as_of=datetime.now(UTC).isoformat(),
         )
+
+    def get_intraday_prices(self, symbol: str) -> list[float]:
+        normalized_symbol = symbol.strip().upper()
+        if not normalized_symbol:
+            return []
+        try:
+            import yfinance as yf
+        except ImportError as error:
+            raise MarketDataError("yfinance is not installed. Run pip install -r apps/api/requirements.txt.") from error
+
+        try:
+            history = yf.Ticker(normalized_symbol).history(period="1d", interval="5m")
+            closes = history["Close"].dropna().tolist()
+        except Exception as error:
+            raise MarketDataError(f"Could not fetch intraday prices for {normalized_symbol}.") from error
+
+        return [round(float(price), 4) for price in closes if isinstance(price, int | float) and price > 0]
 
 
 def _safe_info(ticker: Any) -> dict[str, Any]:

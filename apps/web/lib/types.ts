@@ -98,6 +98,8 @@ export type MarketQuote = {
   name: string;
   price: number;
   currency: string;
+  change_amount?: number | null;
+  change_pct?: number | null;
   provider: string;
   as_of: string;
 };
@@ -119,6 +121,24 @@ export type QuoteRefreshResponse = {
   holdings: Holding[];
   quotes: MarketQuote[];
   message: string;
+};
+
+export type WatchlistItem = {
+  symbol: string;
+  name: string;
+  price?: number | null;
+  currency: string;
+  change_amount?: number | null;
+  change_pct?: number | null;
+  provider?: string | null;
+  as_of?: string | null;
+  sparkline?: number[];
+  error?: string | null;
+};
+
+export type WatchlistResponse = {
+  symbols: string[];
+  items: WatchlistItem[];
 };
 
 export type HoldingDeleteResponse = {
@@ -197,6 +217,7 @@ export type CashflowForecast = {
 
 export type AssetAllocationItem = {
   label: string;
+  value?: number;
   percent: number;
   tone: "stocks" | "etf" | "cash";
   is_mock?: boolean;
@@ -223,6 +244,9 @@ export type NetWorthHistory = {
 export type DashboardSnapshot = {
   accounts: Account[];
   asset_allocation?: AssetAllocationItem[];
+  investment_summary?: PortfolioSnapshot | null;
+  net_worth_total?: number;
+  net_worth_uses_manual_holdings?: boolean;
   monthly_summary: MonthlySummary;
   recurring_items: RecurringItem[];
   forecast: CashflowForecast;

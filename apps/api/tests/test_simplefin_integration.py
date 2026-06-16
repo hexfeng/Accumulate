@@ -154,7 +154,7 @@ def test_simplefin_sync_fetches_accounts_and_transactions_without_changing_ui_co
     assert transactions[0]["source"] == "simplefin"
 
 
-def test_simplefin_sync_backfills_when_local_store_has_no_coverage(tmp_path):
+def test_simplefin_sync_without_coverage_fetches_latest_window_not_initial_backfill(tmp_path):
     client, credential_store, http = make_client(tmp_path)
     credential_store.save_access_url(ACCESS_URL)
 
@@ -163,13 +163,13 @@ def test_simplefin_sync_backfills_when_local_store_has_no_coverage(tmp_path):
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "synced"
-    assert body["backfill_completed_at"] == FIXED_NOW
-    assert body["transaction_coverage_start"] == "2025-06-11"
+    assert body["backfill_completed_at"] is None
+    assert body["transaction_coverage_start"] == "2026-04-27"
     assert body["transaction_coverage_end"] == "2026-06-11"
     windows = simplefin_get_windows(http)
-    assert len(windows) == 9
-    assert windows[0]["start-date"] == ["1749643200"]
-    assert windows[-1]["end-date"] == ["1781179200"]
+    assert len(windows) == 1
+    assert windows[0]["start-date"] == ["1777291200"]
+    assert windows[0]["end-date"] == ["1781179200"]
 
 
 def test_simplefin_connect_backfills_transactions_and_records_local_coverage(tmp_path):
