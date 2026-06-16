@@ -1,5 +1,5 @@
 import os
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Literal
 
@@ -35,6 +35,7 @@ class TransactionPatchRequest(BaseModel):
 
 
 NetWorthRange = Literal["1D", "1W", "1M", "3M", "6M", "YTD", "1Y", "ALL"]
+WATCHLIST_CACHE_SECONDS = 300
 
 
 def create_app(
@@ -53,6 +54,7 @@ def create_app(
     app.state.store = store or _build_default_store()
     app.state.simplefin_service = simplefin_service or _build_default_simplefin_service()
     app.state.quote_service = quote_service or YahooFinanceQuoteService()
+    app.state.watchlist_cache = {}
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
@@ -125,7 +127,7 @@ def create_app(
         symbols = app.state.store.replace_watchlist_symbols(request.symbols)
         return WatchlistResponse(
             symbols=symbols,
-            items=[_watchlist_item(symbol, app.state.quote_service, app.state.store) for symbol in symbols],
+            items=_watchlist_items(symbols, app.state.quote_service, app.state.store, app.state.watchlist_cache),
         )
 
     @app.get("/api/watchlist", response_model=WatchlistResponse)
@@ -133,7 +135,7 @@ def create_app(
         symbols = app.state.store.list_watchlist_symbols()
         return WatchlistResponse(
             symbols=symbols,
-            items=[_watchlist_item(symbol, app.state.quote_service, app.state.store) for symbol in symbols],
+            items=_watchlist_items(symbols, app.state.quote_service, app.state.store, app.state.watchlist_cache),
         )
 
     @app.post("/api/quotes/refresh", response_model=QuoteRefreshResponse)
@@ -360,23 +362,58 @@ def _resolve_holding_quote(request: HoldingRequest, quote_service: YahooFinanceQ
     return request.model_copy(update={"symbol": symbol, "name": name or symbol, "market_price": market_price, "currency": currency})
 
 
-def _watchlist_item(symbol: str, quote_service: YahooFinanceQuoteService, store: LocalStore | DatabaseStore) -> WatchlistItem:
+def _watchlist_items(
+    symbols: list[str],
+    quote_service: YahooFinanceQuoteService,
+    store: LocalStore | DatabaseStore,
+    cache: dict[str, tuple[datetime, WatchlistItem]],
+) -> list[WatchlistItem]:
+    return [_watchlist_item(symbol, quote_service, store, cache) for symbol in symbols]
+
+
+def _watchlist_item(
+    symbol: str,
+    quote_service: YahooFinanceQuoteService,
+    store: LocalStore | DatabaseStore,
+    cache: dict[str, tuple[datetime, WatchlistItem]] | None = None,
+) -> WatchlistItem:
     normalized = symbol.strip().upper()
+    now = datetime.now(UTC)
+    if cache is not None:
+        cached = cache.get(normalized)
+        if cached and (now - cached[0]).total_seconds() <= WATCHLIST_CACHE_SECONDS:
+            return cached[1]
+
     try:
         quote = MarketQuote.model_validate(quote_service.get_quote(normalized))
         saved = store.save_market_quote(quote)
-        return WatchlistItem(
+        sparkline = _watchlist_sparkline(normalized, quote_service)
+        item = WatchlistItem(
             symbol=saved.symbol,
             name=saved.name,
             price=saved.price,
             currency=saved.currency,
             change_amount=saved.change_amount,
             change_pct=saved.change_pct,
+            sparkline=sparkline,
             provider=saved.provider,
             as_of=saved.as_of,
         )
+        if cache is not None:
+            cache[normalized] = (now, item)
+        return item
     except (MarketDataError, RuntimeError, ValidationError):
-        return WatchlistItem(symbol=normalized, name=normalized, error="Quote unavailable")
+        item = WatchlistItem(symbol=normalized, name=normalized, error="Quote unavailable")
+        if cache is not None:
+            cache[normalized] = (now, item)
+        return item
+
+
+def _watchlist_sparkline(symbol: str, quote_service: YahooFinanceQuoteService) -> list[float]:
+    try:
+        return [round(float(price), 4) for price in quote_service.get_intraday_prices(symbol)]
+    except (AttributeError, MarketDataError, RuntimeError, ValidationError, TypeError, ValueError):
+        return []
 
 
 def _parse_month(month: str | None) -> date | None:

@@ -457,10 +457,9 @@ def test_holdings_aware_net_worth_replaces_investment_balance_per_account():
     assert snapshot.used_manual_holdings is True
     assert snapshot.manual_holding_account_ids == ["tfsa"]
     assert [(item.label, item.value, item.percent) for item in snapshot.asset_allocation] == [
-        ("VFV.TO", 12000, 68.57),
-        ("RRSP", 4000, 22.86),
-        ("Cash", 2000, 11.43),
-        ("Visa", -500, -2.86),
+        ("Cash", 2000, 11.11),
+        ("ETFs", 12000, 66.67),
+        ("Investment balances", 4000, 22.22),
     ]
 
 

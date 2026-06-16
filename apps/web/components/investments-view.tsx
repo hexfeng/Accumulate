@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { createHolding, deleteHolding, getQuote, refreshQuotes, replaceWatchlistSymbols, searchSecurities, updateHolding } from "@/lib/api";
+import { createHolding, deleteHolding, getQuote, getWatchlist, refreshQuotes, replaceWatchlistSymbols, searchSecurities, updateHolding } from "@/lib/api";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import type { Account, Holding, HoldingInput, PortfolioSnapshot, SecuritySearchResult, WatchlistItem, WatchlistResponse } from "@/lib/types";
 
@@ -10,7 +10,7 @@ type InvestmentsViewProps = {
   accounts: Account[];
   initialHoldings: Holding[];
   initialPortfolio: PortfolioSnapshot;
-  initialWatchlist: WatchlistResponse;
+  initialWatchlist?: WatchlistResponse;
 };
 
 type HoldingDraft = HoldingInput;
@@ -25,7 +25,9 @@ const EMPTY_DRAFT: HoldingDraft = {
   currency: "CAD"
 };
 
-export function InvestmentsView({ accounts, initialHoldings, initialPortfolio, initialWatchlist }: InvestmentsViewProps) {
+const EMPTY_WATCHLIST: WatchlistResponse = { symbols: [], items: [] };
+
+export function InvestmentsView({ accounts, initialHoldings, initialPortfolio, initialWatchlist = EMPTY_WATCHLIST }: InvestmentsViewProps) {
   const [holdings, setHoldings] = useState(initialHoldings);
   const [watchlist, setWatchlist] = useState(initialWatchlist);
   const [watchlistDraft, setWatchlistDraft] = useState("");
@@ -65,6 +67,24 @@ export function InvestmentsView({ accounts, initialHoldings, initialPortfolio, i
     }, 15 * 60 * 1000);
     return () => window.clearInterval(intervalId);
   }, [refreshPortfolioPrices]);
+
+  useEffect(() => {
+    let isMounted = true;
+    getWatchlist()
+      .then((updated) => {
+        if (isMounted) {
+          setWatchlist(updated);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setWatchlistError("Could not load watchlist. Try again.");
+        }
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   function openAddDialog() {
     setEditingHolding(null);
@@ -336,25 +356,53 @@ function WatchlistPanel({
 function WatchlistCard({ isSaving, item, onRemove }: { isSaving: boolean; item: WatchlistItem; onRemove: () => void }) {
   const change = item.change_pct;
   const isPositive = (change ?? 0) >= 0;
-  const meta = formatWatchlistMeta(item);
+  const directionLabel = change == null || change === 0 ? "Flat" : isPositive ? "Up" : "Down";
+  const previousClose = item.price != null && item.change_amount != null ? item.price - item.change_amount : null;
+  const sparkline = buildSparklineChart(item.sparkline, previousClose);
   return (
-    <div className="watchlist-card">
-      <button type="button" className="watchlist-remove" onClick={onRemove} aria-label={`Remove ${item.symbol}`} disabled={isSaving}>x</button>
-      <span>{item.name || item.symbol}</span>
+    <div className={`watchlist-card ${isPositive ? "positive" : "negative"}`} role="group" aria-label={`${item.symbol} watchlist card`}>
+      <button type="button" className="watchlist-remove" onClick={onRemove} aria-label={`Remove ${item.symbol}`} disabled={isSaving} />
+      <div className="watchlist-card-header">
+        <span>{watchlistDisplayName(item)}</span>
+      </div>
       {item.error ? (
         <strong>{item.error}</strong>
       ) : (
         <>
-          <strong>{formatMarketNumber(item.price ?? 0)}</strong>
-          {change == null || item.change_amount == null ? (
-            <small>Change unavailable</small>
-          ) : (
-            <small className={isPositive ? "positive" : "negative"}>
-              {formatChangeAmount(item.change_amount)} {formatSignedPercent(change)}
-            </small>
-          )}
-          {meta ? <em>{meta}</em> : null}
-          <div className={`watchlist-spark ${isPositive ? "positive" : "negative"}`} aria-hidden="true" />
+          <div className="watchlist-market-row">
+            <div className="watchlist-market-values">
+              <strong>{formatMarketNumber(item.price ?? 0)}</strong>
+              {change == null || item.change_amount == null ? (
+                <small>Change unavailable</small>
+              ) : (
+                <>
+                  <small className="watchlist-change-amount">{formatParentheticalChangeAmount(item.change_amount)}</small>
+                  <div className="watchlist-change-row">
+                    <span className={`watchlist-change-pct ${isPositive ? "positive" : "negative"}`}>{formatSignedPercent(change)}</span>
+                  </div>
+                </>
+              )}
+            </div>
+            {change == null || item.change_amount == null ? null : (
+              <span className={`watchlist-direction-icon ${directionLabel.toLowerCase()}`} aria-label={directionLabel} />
+            )}
+          </div>
+          <svg className={`watchlist-spark ${isPositive ? "positive" : "negative"}`} viewBox="0 0 140 42" preserveAspectRatio="none" aria-hidden="true">
+            {sparkline.previousCloseY ? (
+              <line
+                className="watchlist-previous-close-line"
+                stroke="rgba(112, 122, 138, 0.62)"
+                strokeDasharray="3 4"
+                strokeLinecap="round"
+                strokeWidth="1.1"
+                x1="0"
+                x2="140"
+                y1={sparkline.previousCloseY}
+                y2={sparkline.previousCloseY}
+              />
+            ) : null}
+            <polyline points={sparkline.points} />
+          </svg>
         </>
       )}
     </div>
@@ -558,6 +606,11 @@ function formatChangeAmount(value?: number | null) {
   return `${sign}${formatMarketNumber(value)}`;
 }
 
+function formatParentheticalChangeAmount(value?: number | null) {
+  const amount = formatChangeAmount(value);
+  return amount ? `(${amount})` : "";
+}
+
 function formatSignedPercent(value: number) {
   const sign = value >= 0 ? "+" : "";
   return `${sign}${value.toFixed(2)}%`;
@@ -566,6 +619,18 @@ function formatSignedPercent(value: number) {
 function formatWatchlistMeta(item: WatchlistItem) {
   const parts = [item.provider, formatWatchlistTime(item.as_of)].filter(Boolean);
   return parts.join(" · ");
+}
+
+function watchlistDisplayName(item: WatchlistItem) {
+  const indexNames: Record<string, string> = {
+    "^DJI": "Dow Jones",
+    "^GSPC": "S&P 500",
+    "^IXIC": "Nasdaq",
+    "^RUT": "Russell",
+    "^GSPTSE": "TSX",
+    "MU": "Micron"
+  };
+  return indexNames[item.symbol] ?? item.name ?? item.symbol;
 }
 
 function formatWatchlistTime(value?: string | null) {
@@ -581,6 +646,45 @@ function formatWatchlistTime(value?: string | null) {
     timeStyle: "short",
     timeZone: "America/Toronto"
   }).format(date);
+}
+
+function buildSparklineChart(values?: number[], previousClose?: number | null) {
+  const width = 140;
+  const height = 42;
+  const verticalPadding = 4;
+  const points = values?.filter((value) => Number.isFinite(value)) ?? [];
+  if (points.length < 2) {
+    return {
+      points: `0,${height / 2} ${roundPoint(width / 3)},${height / 2} ${roundPoint((width / 3) * 2)},${height / 2} ${width},${height / 2}`,
+      previousCloseY: null
+    };
+  }
+  const hasPreviousClose = previousClose != null && Number.isFinite(previousClose);
+  const scalePoints = hasPreviousClose ? [...points, previousClose] : points;
+  const min = Math.min(...scalePoints);
+  const max = Math.max(...scalePoints);
+  const range = max - min;
+  if (range === 0) {
+    return {
+      points: points.map((_, index) => `${roundPoint((index / Math.max(points.length - 1, 1)) * width)},${height / 2}`).join(" "),
+      previousCloseY: hasPreviousClose ? roundPoint(height / 2) : null
+    };
+  }
+  const drawableHeight = height - verticalPadding * 2;
+  const yForValue = (value: number) => roundPoint(height - verticalPadding - ((value - min) / range) * drawableHeight);
+  return {
+    points: points
+      .map((value, index) => {
+        const x = (index / Math.max(points.length - 1, 1)) * width;
+        return `${roundPoint(x)},${yForValue(value)}`;
+      })
+      .join(" "),
+    previousCloseY: hasPreviousClose ? yForValue(previousClose) : null
+  };
+}
+
+function roundPoint(value: number) {
+  return Number(value.toFixed(2)).toString();
 }
 
 function buildPortfolioSnapshot(holdings: Holding[], fallback: PortfolioSnapshot, investmentAccounts: Account[]): PortfolioSnapshot {

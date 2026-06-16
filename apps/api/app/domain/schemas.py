@@ -85,6 +85,7 @@ class WatchlistItem(BaseModel):
     currency: str = "CAD"
     change_amount: float | None = None
     change_pct: float | None = None
+    sparkline: list[float] = Field(default_factory=list)
     provider: str | None = None
     as_of: str | None = None
     error: str | None = None

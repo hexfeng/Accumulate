@@ -146,6 +146,9 @@ class FakeQuoteService:
             "as_of": "2026-06-12T13:00:00Z",
         }
 
+    def get_intraday_prices(self, symbol: str):
+        return [100, 101.5, 103]
+
     def search(self, query: str, max_results: int = 8):
         self.search_calls.append(query)
         return [
@@ -569,8 +572,11 @@ def test_dashboard_and_net_worth_use_holdings_aware_investment_value():
     assert dashboard["net_worth_total"] == 17500
     assert dashboard["net_worth_uses_manual_holdings"] is True
     assert dashboard["investment_summary"]["total_value"] == 12000
-    assert dashboard["asset_allocation"][0]["label"] == "VFV.TO"
-    assert dashboard["asset_allocation"][0]["value"] == 12000
+    assert [(item["label"], item["value"], item["percent"]) for item in dashboard["asset_allocation"]] == [
+        ("Cash", 2000, 11.11),
+        ("ETFs", 12000, 66.67),
+        ("Investment balances", 4000, 22.22),
+    ]
     assert history["current_value"] == 17500
     assert history["points"][-1]["value"] == 17500
 
@@ -603,8 +609,22 @@ def test_watchlist_returns_default_symbols_with_quotes_and_symbol_errors():
     assert data["items"][0]["change_pct"] == 1.25
     assert data["items"][0]["provider"] == "test"
     assert data["items"][0]["as_of"] == "2026-06-12T13:00:00Z"
+    assert data["items"][0]["sparkline"] == [100, 101.5, 103]
     assert data["items"][3]["price"] is None
     assert data["items"][3]["error"] == "Quote unavailable"
+
+
+def test_watchlist_reuses_short_cache_for_repeated_page_loads():
+    quote_service = FakeQuoteService()
+    client = TestClient(create_app(store=LocalStore(), quote_service=quote_service))
+
+    first_response = client.get("/api/watchlist")
+    second_response = client.get("/api/watchlist")
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 200
+    assert first_response.json() == second_response.json()
+    assert quote_service.quote_calls == ["^DJI", "^GSPC", "^IXIC", "^RUT", "^GSPTSE"]
 
 
 def test_watchlist_symbols_can_be_replaced():

@@ -132,6 +132,7 @@ export type WatchlistItem = {
   change_pct?: number | null;
   provider?: string | null;
   as_of?: string | null;
+  sparkline?: number[];
   error?: string | null;
 };
 

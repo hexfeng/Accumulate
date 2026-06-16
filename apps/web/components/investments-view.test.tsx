@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import InvestmentsPage from "@/app/investments/page";
 import { InvestmentsView } from "./investments-view";
 import * as api from "@/lib/api";
 import type { Account, Holding, PortfolioSnapshot, WatchlistResponse } from "@/lib/types";
@@ -13,6 +14,9 @@ vi.mock("@/lib/api", async () => {
     createHolding: vi.fn(),
     updateHolding: vi.fn(),
     deleteHolding: vi.fn(),
+    getAccounts: vi.fn(),
+    getHoldings: vi.fn(),
+    getPortfolio: vi.fn(),
     getQuote: vi.fn(),
     getWatchlist: vi.fn(),
     refreshQuotes: vi.fn(),
@@ -41,7 +45,7 @@ const portfolio: PortfolioSnapshot = {
 const emptyWatchlist: WatchlistResponse = { symbols: [], items: [] };
 
 const watchlist: WatchlistResponse = {
-  symbols: ["^GSPC", "^IXIC"],
+  symbols: ["^GSPC", "^IXIC", "MU"],
   items: [
     {
       symbol: "^GSPC",
@@ -63,6 +67,16 @@ const watchlist: WatchlistResponse = {
       provider: null,
       as_of: null,
       error: "Quote unavailable"
+    },
+    {
+      symbol: "MU",
+      name: "Micron Technology, Inc.",
+      price: 1087.99,
+      currency: "USD",
+      change_amount: 98.39,
+      change_pct: 9.94,
+      provider: "test",
+      as_of: "2026-06-12T13:00:00Z"
     }
   ]
 };
@@ -84,6 +98,9 @@ describe("InvestmentsView", () => {
     }));
     vi.mocked(api.updateHolding).mockResolvedValue({ ...holdings[0], quantity: 12 });
     vi.mocked(api.deleteHolding).mockResolvedValue({ deleted_holding_id: "vfv" });
+    vi.mocked(api.getAccounts).mockResolvedValue(accounts);
+    vi.mocked(api.getHoldings).mockResolvedValue(holdings);
+    vi.mocked(api.getPortfolio).mockResolvedValue(portfolio);
     vi.mocked(api.getWatchlist).mockResolvedValue(watchlist);
     vi.mocked(api.replaceWatchlistSymbols).mockResolvedValue(watchlist);
     vi.mocked(api.getQuote).mockResolvedValue({
@@ -130,6 +147,15 @@ describe("InvestmentsView", () => {
       }],
       message: "Refreshed 1 symbols; skipped 0 fresh cached symbols."
     });
+  });
+
+  it("does not block the investments server page on watchlist quotes", async () => {
+    await InvestmentsPage();
+
+    expect(api.getAccounts).toHaveBeenCalledTimes(1);
+    expect(api.getHoldings).toHaveBeenCalledTimes(1);
+    expect(api.getPortfolio).toHaveBeenCalledTimes(1);
+    expect(api.getWatchlist).not.toHaveBeenCalled();
   });
 
   it("renders portfolio value, allocation, account grouping, and holding management actions", async () => {
@@ -360,17 +386,74 @@ describe("InvestmentsView", () => {
     expect(screen.getByText("Watchlist")).toBeInTheDocument();
     expect(screen.getByText("S&P 500")).toBeInTheDocument();
     expect(screen.getByText("7,431.46")).toBeInTheDocument();
-    expect(screen.getByText((_content, element) => element?.textContent === "+37.16 +0.50%")).toBeInTheDocument();
-    expect(screen.getByText("test · Jun 12, 2026, 9:00 AM")).toBeInTheDocument();
+    expect(screen.getByText("(+37.16)")).toHaveClass("watchlist-change-amount");
+    expect(screen.getByText("+0.50%")).toHaveClass("watchlist-change-pct");
+    expect(screen.getByRole("button", { name: "Remove ^GSPC" })).toBeEmptyDOMElement();
+    const firstCard = screen.getByRole("group", { name: "^GSPC watchlist card" });
+    expect(firstCard.querySelector(".watchlist-market-row > .watchlist-direction-icon")).toHaveAttribute("aria-label", "Up");
+    expect(firstCard.querySelector(".watchlist-change-row .watchlist-direction-icon")).not.toBeInTheDocument();
+    expect(screen.queryByText("test · Jun 12, 2026, 9:00 AM")).not.toBeInTheDocument();
     expect(screen.getByText("Nasdaq")).toBeInTheDocument();
+    expect(screen.getByText("Micron")).toBeInTheDocument();
+    expect(screen.queryByText("Micron Technology, Inc.")).not.toBeInTheDocument();
     expect(screen.getByText("Quote unavailable")).toBeInTheDocument();
+  });
+
+  it("loads the watchlist on the client after the investments shell renders", async () => {
+    render(<InvestmentsView accounts={accounts} initialHoldings={holdings} initialPortfolio={portfolio} initialWatchlist={emptyWatchlist} />);
+
+    expect(screen.getByRole("heading", { name: "Investments" })).toBeInTheDocument();
+    expect(api.getWatchlist).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText("S&P 500")).toBeInTheDocument();
+    expect(screen.getByText("7,431.46")).toBeInTheDocument();
+  });
+
+  it("draws watchlist sparklines from quote history with a stable fallback", () => {
+    render(
+      <InvestmentsView
+        accounts={accounts}
+        initialHoldings={holdings}
+        initialPortfolio={portfolio}
+        initialWatchlist={{
+          symbols: ["^GSPC", "VFV.TO"],
+          items: [
+            {
+              ...watchlist.items[0],
+              change_amount: 16.46,
+              sparkline: [7410, 7420, 7416, 7431.46]
+            },
+            {
+              symbol: "VFV.TO",
+              name: "Vanguard S&P 500 ETF",
+              price: 150,
+              currency: "CAD",
+              change_amount: null,
+              change_pct: null,
+              provider: "test",
+              as_of: "2026-06-12T13:00:00Z"
+            }
+          ]
+        }}
+      />
+    );
+
+    const cards = screen.getAllByRole("group", { name: /watchlist card/i });
+    expect(cards).toHaveLength(2);
+    expect(cards[0].querySelector("polyline")).toHaveAttribute("points", "0,38 46.67,22.16 93.33,28.49 140,4");
+    expect(cards[0].querySelector(".watchlist-previous-close-line")).toHaveAttribute("y1", "30.08");
+    expect(cards[0].querySelector(".watchlist-previous-close-line")).toHaveAttribute("y2", "30.08");
+    expect(cards[0].querySelector(".watchlist-previous-close-line")).toHaveAttribute("stroke-dasharray", "3 4");
+    expect(cards[1].querySelector("polyline")).toHaveAttribute("points", "0,21 46.67,21 93.33,21 140,21");
+    expect(cards[1].querySelector(".watchlist-previous-close-line")).not.toBeInTheDocument();
+    expect(within(cards[0]).getByLabelText("Up")).toHaveClass("watchlist-direction-icon");
+    expect(within(cards[1]).queryByLabelText("Flat")).not.toBeInTheDocument();
   });
 
   it("adds and removes watchlist symbols", async () => {
     const withVfv: WatchlistResponse = {
-      symbols: ["^GSPC", "VFV.TO"],
+      symbols: ["^GSPC", "^IXIC", "MU", "VFV.TO"],
       items: [
-        watchlist.items[0],
+        ...watchlist.items,
         {
           symbol: "VFV.TO",
           name: "Vanguard S&P 500 ETF",
@@ -386,8 +469,8 @@ describe("InvestmentsView", () => {
     vi.mocked(api.replaceWatchlistSymbols)
       .mockResolvedValueOnce(withVfv)
       .mockResolvedValueOnce({
-        symbols: ["^GSPC"],
-        items: [watchlist.items[0]]
+        symbols: ["^GSPC", "^IXIC", "MU"],
+        items: watchlist.items
       });
 
     render(<InvestmentsView accounts={accounts} initialHoldings={holdings} initialPortfolio={portfolio} initialWatchlist={watchlist} />);
@@ -395,11 +478,11 @@ describe("InvestmentsView", () => {
     fireEvent.change(screen.getByLabelText("Add watchlist symbol"), { target: { value: "vfv.to" } });
     fireEvent.click(screen.getByRole("button", { name: "Add symbol" }));
 
-    await waitFor(() => expect(api.replaceWatchlistSymbols).toHaveBeenCalledWith(["^GSPC", "^IXIC", "VFV.TO"]));
+    await waitFor(() => expect(api.replaceWatchlistSymbols).toHaveBeenCalledWith(["^GSPC", "^IXIC", "MU", "VFV.TO"]));
     await waitFor(() => expect(screen.getAllByText("Vanguard S&P 500 ETF").length).toBeGreaterThan(1));
 
     fireEvent.click(screen.getByRole("button", { name: "Remove VFV.TO" }));
-    await waitFor(() => expect(api.replaceWatchlistSymbols).toHaveBeenLastCalledWith(["^GSPC"]));
+    await waitFor(() => expect(api.replaceWatchlistSymbols).toHaveBeenLastCalledWith(["^GSPC", "^IXIC", "MU"]));
   });
 
   it("serializes watchlist updates while a save is pending", async () => {
@@ -421,7 +504,7 @@ describe("InvestmentsView", () => {
     expect(screen.getByRole("button", { name: "Remove ^GSPC" })).toBeDisabled();
 
     resolveUpdate({
-      symbols: ["^GSPC", "^IXIC", "VFV.TO"],
+      symbols: ["^GSPC", "^IXIC", "MU", "VFV.TO"],
       items: [...watchlist.items, { symbol: "VFV.TO", name: "VFV.TO", price: 150, currency: "CAD", change_amount: null, change_pct: null }]
     });
     await waitFor(() => expect(screen.getByRole("button", { name: "Add symbol" })).not.toBeDisabled());

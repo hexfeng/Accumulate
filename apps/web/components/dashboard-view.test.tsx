@@ -136,10 +136,9 @@ describe("DashboardView", () => {
             accounts: [{ account_id: "tfsa", account_name: "TFSA", value: 12000, holdings_count: 1 }]
           },
           asset_allocation: [
-            { label: "VFV.TO", value: 12000, percent: 68.57, tone: "etf" },
-            { label: "RRSP", value: 4000, percent: 22.86, tone: "etf" },
-            { label: "Cash", value: 2000, percent: 11.43, tone: "cash" },
-            { label: "Visa", value: -500, percent: -2.86, tone: "stocks" }
+            { label: "Cash", value: 2000, percent: 11.11, tone: "cash" },
+            { label: "ETFs", value: 12000, percent: 66.67, tone: "etf" },
+            { label: "Investment balances", value: 4000, percent: 22.22, tone: "stocks" }
           ]
         }}
       />
@@ -149,12 +148,12 @@ describe("DashboardView", () => {
     expect(screen.getByText("Holdings-aware estimate")).toBeInTheDocument();
     expect(screen.getByText("Asset mix")).toBeInTheDocument();
     expect(screen.queryByText("Mock asset mix")).not.toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "VFV.TO 69%, RRSP 23%, Cash 11%, Visa -3%" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Cash 11%, ETFs 67%, Investment balances 22%" })).toBeInTheDocument();
     const segmentWidths = Array.from(container.querySelectorAll<HTMLElement>(".asset-segment"))
       .map((segment) => segment.style.width)
       .filter(Boolean);
     expect(segmentWidths.every((width) => !width.startsWith("-"))).toBe(true);
-    expect(segmentWidths).toEqual(["66.99%", "22.33%", "10.68%"]);
+    expect(segmentWidths).toEqual(["11.11%", "66.67%", "22.22%"]);
     expect(screen.getByText("$12,000.00")).toBeInTheDocument();
     expect(screen.getByText("Portfolio value")).toBeInTheDocument();
   });

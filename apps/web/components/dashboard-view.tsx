@@ -61,7 +61,7 @@ export function DashboardView({ initialNetWorthHistory, snapshot }: Props) {
   const assetAllocation = normalizeAssetAllocation(realAllocation.length ? realAllocation : MOCK_ASSET_ALLOCATION);
   const allocationDisplaySegments = buildAllocationDisplaySegments(assetAllocation);
   const hasMockAllocation = assetAllocation.some((asset) => asset.is_mock);
-  const allocationLabel = assetAllocation.map((asset) => `${asset.label} ${asset.percent}%`).join(", ");
+  const allocationLabel = assetAllocation.map((asset) => `${asset.label} ${Math.round(asset.percent)}%`).join(", ");
   const hasSimpleFinAccounts = snapshot.accounts.some((account) => account.source === "simplefin");
 
   return (
@@ -347,10 +347,7 @@ function normalizeAssetAllocation(items: AssetAllocationItem[]) {
   if (positiveTotal <= 0) {
     return MOCK_ASSET_ALLOCATION;
   }
-  return items.map((item) => ({
-    ...item,
-    percent: Math.round(item.percent)
-  }));
+  return items;
 }
 
 function buildAllocationDisplaySegments(items: AssetAllocationItem[]): AllocationDisplaySegment[] {
