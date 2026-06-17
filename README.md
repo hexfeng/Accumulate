@@ -1,6 +1,8 @@
 # FinSight
 
-FinSight is a local-first personal finance workspace for bank-account tracking, cashflow forecasting, spending analysis, and source-health management. It combines a Dashboard command center with focused Cash, Accounts, Transactions, and Spending pages so users can move from high-level financial signals into account balances, card obligations, transaction review, and data-source actions.
+FinSight is a local-first personal finance workspace for connected account tracking, transaction review, spending analysis, cashflow forecasting, and investment monitoring. It combines a Dashboard command center with focused Cash, Accounts, Transactions, Spending, Recap, Investments, and Settings pages so users can move from high-level financial signals into the exact account, merchant, category, holding, or data-source action that needs attention.
+
+The app is built around private local control: SimpleFIN credentials are stored locally, account and transaction data stay in the local persistence layer, and market data is fetched only for the symbols the user chooses to track.
 
 ## What is implemented
 
@@ -19,9 +21,19 @@ FinSight is a local-first personal finance workspace for bank-account tracking, 
 - Settings MVP with budget, category budget, forecast assumption, currency/timezone, AI privacy, and local-first controls connected to the settings API.
 - Demo seed endpoint for local development.
 
-## Latest milestone
+## Screenshots
 
-As of 2026-06-04, the Accounts + Cash MVP is implemented and pushed on `codex/dashboard-ui-polish` at commit `74da22d`.
+### Dashboard
+
+![FinSight dashboard command center](docs/assets/dashboard-current.png)
+
+### Investments
+
+![FinSight investments page with watchlist and allocation](docs/assets/investments-current.png)
+
+## Current milestone
+
+As of June 2026, the SimpleFIN Bridge, account/transaction workflows, Recap, Spending, Settings, Dashboard, and Investments MVP surfaces are implemented on `main`.
 
 Completed:
 
