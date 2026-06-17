@@ -26,11 +26,19 @@ const EMPTY_DRAFT: HoldingDraft = {
 };
 
 const EMPTY_WATCHLIST: WatchlistResponse = { symbols: [], items: [] };
+const MAX_WATCHLIST_SYMBOLS = 5;
+const MARKET_SESSION_INTERVALS = 78;
+const MARKET_OPEN_MINUTES = 9 * 60 + 30;
+const MARKET_SESSION_MINUTES = 390;
 
 export function InvestmentsView({ accounts, initialHoldings, initialPortfolio, initialWatchlist = EMPTY_WATCHLIST }: InvestmentsViewProps) {
   const [holdings, setHoldings] = useState(initialHoldings);
   const [watchlist, setWatchlist] = useState(initialWatchlist);
   const [watchlistDraft, setWatchlistDraft] = useState("");
+  const [watchlistSearchResults, setWatchlistSearchResults] = useState<SecuritySearchResult[]>([]);
+  const [isWatchlistSearching, setIsWatchlistSearching] = useState(false);
+  const [isWatchlistDialogOpen, setIsWatchlistDialogOpen] = useState(false);
+  const [draggedWatchlistSymbol, setDraggedWatchlistSymbol] = useState<string | null>(null);
   const [isWatchlistSaving, setIsWatchlistSaving] = useState(false);
   const [watchlistError, setWatchlistError] = useState<string | null>(null);
   const watchlistSavingRef = useRef(false);
@@ -86,6 +94,44 @@ export function InvestmentsView({ accounts, initialHoldings, initialPortfolio, i
     };
   }, []);
 
+  useEffect(() => {
+    if (!isWatchlistDialogOpen) {
+      setWatchlistSearchResults([]);
+      setIsWatchlistSearching(false);
+      return;
+    }
+    const query = watchlistDraft.trim();
+    if (!query) {
+      setWatchlistSearchResults([]);
+      setIsWatchlistSearching(false);
+      return;
+    }
+    let isCancelled = false;
+    setIsWatchlistSearching(true);
+    const timeoutId = window.setTimeout(() => {
+      searchSecurities(query)
+        .then((results) => {
+          if (!isCancelled) {
+            setWatchlistSearchResults(results);
+          }
+        })
+        .catch(() => {
+          if (!isCancelled) {
+            setWatchlistSearchResults([]);
+          }
+        })
+        .finally(() => {
+          if (!isCancelled) {
+            setIsWatchlistSearching(false);
+          }
+        });
+    }, 180);
+    return () => {
+      isCancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [isWatchlistDialogOpen, watchlistDraft]);
+
   function openAddDialog() {
     setEditingHolding(null);
     setIsDialogOpen(true);
@@ -125,21 +171,51 @@ export function InvestmentsView({ accounts, initialHoldings, initialPortfolio, i
     setHoldings((current) => current.filter((item) => item.id !== holding.id));
   }
 
-  async function addWatchlistSymbol(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const symbol = watchlistDraft.trim().toUpperCase();
-    if (!symbol || watchlist.symbols.includes(symbol)) {
+  async function addWatchlistSymbol(symbol: string) {
+    const normalized = symbol.trim().toUpperCase();
+    if (!normalized || watchlist.symbols.includes(normalized)) {
       setWatchlistDraft("");
       return;
     }
-    const saved = await saveWatchlistSymbols([...watchlist.symbols, symbol]);
+    if (watchlist.symbols.length >= MAX_WATCHLIST_SYMBOLS) {
+      setWatchlistError("Watchlist can include up to 5 symbols.");
+      return;
+    }
+    const saved = await saveWatchlistSymbols([...watchlist.symbols, normalized]);
     if (saved) {
       setWatchlistDraft("");
+      setWatchlistSearchResults([]);
     }
   }
 
   async function removeWatchlistSymbol(symbol: string) {
     await saveWatchlistSymbols(watchlist.symbols.filter((item) => item !== symbol));
+  }
+
+  async function moveWatchlistSymbol(symbol: string, direction: -1 | 1) {
+    const index = watchlist.symbols.indexOf(symbol);
+    const nextIndex = index + direction;
+    if (index < 0 || nextIndex < 0 || nextIndex >= watchlist.symbols.length) {
+      return;
+    }
+    const next = [...watchlist.symbols];
+    [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+    await saveWatchlistSymbols(next);
+  }
+
+  async function reorderWatchlistSymbol(symbol: string, targetSymbol: string) {
+    if (symbol === targetSymbol) {
+      return;
+    }
+    const currentIndex = watchlist.symbols.indexOf(symbol);
+    const targetIndex = watchlist.symbols.indexOf(targetSymbol);
+    if (currentIndex < 0 || targetIndex < 0) {
+      return;
+    }
+    const next = [...watchlist.symbols];
+    next.splice(currentIndex, 1);
+    next.splice(targetIndex, 0, symbol);
+    await saveWatchlistSymbols(next);
   }
 
   async function saveWatchlistSymbols(symbols: string[]) {
@@ -191,11 +267,26 @@ export function InvestmentsView({ accounts, initialHoldings, initialPortfolio, i
       <WatchlistPanel
         draft={watchlistDraft}
         error={watchlistError}
+        draggedSymbol={draggedWatchlistSymbol}
+        isDialogOpen={isWatchlistDialogOpen}
         isSaving={isWatchlistSaving}
+        isSearching={isWatchlistSearching}
         items={watchlist.items}
-        onAdd={addWatchlistSymbol}
+        onAddSymbol={addWatchlistSymbol}
+        onCloseDialog={() => setIsWatchlistDialogOpen(false)}
         onDraftChange={setWatchlistDraft}
+        onMove={moveWatchlistSymbol}
+        onOpenDialog={() => {
+          setWatchlistDraft("");
+          setWatchlistSearchResults([]);
+          setWatchlistError(null);
+          setIsWatchlistDialogOpen(true);
+        }}
         onRemove={removeWatchlistSymbol}
+        onReorder={reorderWatchlistSymbol}
+        onSetDraggedSymbol={setDraggedWatchlistSymbol}
+        searchResults={watchlistSearchResults}
+        symbols={watchlist.symbols}
       />
 
       <div className="spending-detail-grid">
@@ -316,54 +407,91 @@ function MetricCard({ label, meta, value }: { label: string; meta: string; value
 
 function WatchlistPanel({
   draft,
+  draggedSymbol,
   error,
+  isDialogOpen,
   isSaving,
+  isSearching,
   items,
-  onAdd,
+  onAddSymbol,
+  onCloseDialog,
   onDraftChange,
-  onRemove
+  onMove,
+  onOpenDialog,
+  onRemove,
+  onReorder,
+  onSetDraggedSymbol,
+  searchResults,
+  symbols
 }: {
   draft: string;
+  draggedSymbol: string | null;
   error: string | null;
+  isDialogOpen: boolean;
   isSaving: boolean;
+  isSearching: boolean;
   items: WatchlistItem[];
-  onAdd: (event: React.FormEvent<HTMLFormElement>) => void;
+  onAddSymbol: (symbol: string) => void | Promise<void>;
+  onCloseDialog: () => void;
   onDraftChange: (value: string) => void;
+  onMove: (symbol: string, direction: -1 | 1) => void | Promise<void>;
+  onOpenDialog: () => void;
   onRemove: (symbol: string) => void | Promise<void>;
+  onReorder: (symbol: string, targetSymbol: string) => void | Promise<void>;
+  onSetDraggedSymbol: (symbol: string | null) => void;
+  searchResults: SecuritySearchResult[];
+  symbols: string[];
 }) {
   return (
     <article className="panel watchlist-panel">
       <div className="panel-heading compact watchlist-heading">
-        <h2>Watchlist</h2>
-        <form className="watchlist-form" onSubmit={onAdd}>
-          <label>
-            <span>Add watchlist symbol</span>
-            <input value={draft} onChange={(event) => onDraftChange(event.target.value)} />
-          </label>
-          <button type="submit" disabled={isSaving}>Add symbol</button>
-        </form>
+        <div>
+          <h2>Watchlist</h2>
+          <p>Intraday price movement</p>
+        </div>
+        <button className="watchlist-edit-button" type="button" onClick={onOpenDialog}>Edit</button>
       </div>
       {error ? <p className="watchlist-error" role="alert">{error}</p> : null}
       <div className="watchlist-strip">
         {items.map((item) => (
-          <WatchlistCard isSaving={isSaving} item={item} key={item.symbol} onRemove={() => void onRemove(item.symbol)} />
+          <WatchlistCard item={item} key={item.symbol} />
         ))}
       </div>
+      {isDialogOpen ? (
+        <WatchlistDialog
+          draft={draft}
+          draggedSymbol={draggedSymbol}
+          isSaving={isSaving}
+          isSearching={isSearching}
+          items={items}
+          onAddSymbol={onAddSymbol}
+          onClose={onCloseDialog}
+          onDraftChange={onDraftChange}
+          onMove={onMove}
+          onRemove={onRemove}
+          onReorder={onReorder}
+          onSetDraggedSymbol={onSetDraggedSymbol}
+          searchResults={searchResults}
+          symbols={symbols}
+        />
+      ) : null}
     </article>
   );
 }
 
-function WatchlistCard({ isSaving, item, onRemove }: { isSaving: boolean; item: WatchlistItem; onRemove: () => void }) {
+function WatchlistCard({ item }: { item: WatchlistItem }) {
   const change = item.change_pct;
   const isPositive = (change ?? 0) >= 0;
-  const directionLabel = change == null || change === 0 ? "Flat" : isPositive ? "Up" : "Down";
   const previousClose = item.price != null && item.change_amount != null ? item.price - item.change_amount : null;
   const sparkline = buildSparklineChart(item.sparkline, previousClose);
   return (
     <div className={`watchlist-card ${isPositive ? "positive" : "negative"}`} role="group" aria-label={`${item.symbol} watchlist card`}>
-      <button type="button" className="watchlist-remove" onClick={onRemove} aria-label={`Remove ${item.symbol}`} disabled={isSaving} />
       <div className="watchlist-card-header">
-        <span>{watchlistDisplayName(item)}</span>
+        <span className="watchlist-card-title">
+          <strong>{item.symbol}</strong>
+          <small>{watchlistSecurityName(item)}</small>
+        </span>
+        <span className="watchlist-exchange-pill">{watchlistExchangeLabel(item.symbol)}</span>
       </div>
       {item.error ? (
         <strong>{item.error}</strong>
@@ -375,36 +503,168 @@ function WatchlistCard({ isSaving, item, onRemove }: { isSaving: boolean; item: 
               {change == null || item.change_amount == null ? (
                 <small>Change unavailable</small>
               ) : (
-                <>
-                  <small className="watchlist-change-amount">{formatParentheticalChangeAmount(item.change_amount)}</small>
-                  <div className="watchlist-change-row">
-                    <span className={`watchlist-change-pct ${isPositive ? "positive" : "negative"}`}>{formatSignedPercent(change)}</span>
-                  </div>
-                </>
+                <span className={`watchlist-change-pct ${isPositive ? "positive" : "negative"}`}>
+                  {formatChangeAmount(item.change_amount)} ({formatSignedPercent(change)})
+                </span>
               )}
             </div>
-            {change == null || item.change_amount == null ? null : (
-              <span className={`watchlist-direction-icon ${directionLabel.toLowerCase()}`} aria-label={directionLabel} />
-            )}
           </div>
-          <svg className={`watchlist-spark ${isPositive ? "positive" : "negative"}`} viewBox="0 0 140 42" preserveAspectRatio="none" aria-hidden="true">
-            {sparkline.previousCloseY ? (
-              <line
-                className="watchlist-previous-close-line"
-                stroke="rgba(112, 122, 138, 0.62)"
-                strokeDasharray="3 4"
-                strokeLinecap="round"
-                strokeWidth="1.1"
-                x1="0"
-                x2="140"
-                y1={sparkline.previousCloseY}
-                y2={sparkline.previousCloseY}
-              />
-            ) : null}
-            <polyline points={sparkline.points} />
-          </svg>
+          <div className="watchlist-chart">
+            <svg className={`watchlist-spark ${isPositive ? "positive" : "negative"}`} viewBox="0 0 160 58" preserveAspectRatio="none" aria-hidden="true">
+              {sparkline.previousCloseY ? (
+                <line
+                  className="watchlist-previous-close-line"
+                  x1="0"
+                  x2="160"
+                  y1={sparkline.previousCloseY}
+                  y2={sparkline.previousCloseY}
+                />
+              ) : null}
+              {sparkline.areaPoints ? <polygon className="watchlist-spark-area" points={sparkline.areaPoints} /> : null}
+              <polyline points={sparkline.points} />
+              {sparkline.endpoint ? <circle className="watchlist-spark-endpoint" cx={sparkline.endpoint.x} cy={sparkline.endpoint.y} r="2.4" /> : null}
+            </svg>
+            <div className="watchlist-session-track" aria-hidden="true">
+              <span style={{ width: `${sparkline.progressPct}%` }} />
+            </div>
+            <div className="watchlist-session-labels">
+              <span>Open 9:30 AM</span>
+              <span>{sparkline.endLabel}</span>
+            </div>
+          </div>
         </>
       )}
+    </div>
+  );
+}
+
+function WatchlistDialog({
+  draft,
+  draggedSymbol,
+  isSaving,
+  isSearching,
+  items,
+  onAddSymbol,
+  onClose,
+  onDraftChange,
+  onMove,
+  onRemove,
+  onReorder,
+  onSetDraggedSymbol,
+  searchResults,
+  symbols
+}: {
+  draft: string;
+  draggedSymbol: string | null;
+  isSaving: boolean;
+  isSearching: boolean;
+  items: WatchlistItem[];
+  onAddSymbol: (symbol: string) => void | Promise<void>;
+  onClose: () => void;
+  onDraftChange: (value: string) => void;
+  onMove: (symbol: string, direction: -1 | 1) => void | Promise<void>;
+  onRemove: (symbol: string) => void | Promise<void>;
+  onReorder: (symbol: string, targetSymbol: string) => void | Promise<void>;
+  onSetDraggedSymbol: (symbol: string | null) => void;
+  searchResults: SecuritySearchResult[];
+  symbols: string[];
+}) {
+  const itemMap = new Map(items.map((item) => [item.symbol, item]));
+  const canAdd = symbols.length < MAX_WATCHLIST_SYMBOLS;
+
+  function submitDraft(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const symbol = searchResults[0]?.symbol ?? draft;
+    void onAddSymbol(symbol);
+  }
+
+  return (
+    <div className="account-dialog-backdrop" role="presentation" onClick={(event) => event.currentTarget === event.target && onClose()}>
+      <div className="account-dialog watchlist-dialog" role="dialog" aria-modal="true" aria-labelledby="watchlist-dialog-title">
+        <div className="account-dialog-header">
+          <div>
+            <span className="section-eyebrow">Current watchlist</span>
+            <h2 id="watchlist-dialog-title">Edit watchlist</h2>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close watchlist dialog">Close</button>
+        </div>
+
+        <div className="watchlist-current-list">
+          {symbols.map((symbol, index) => {
+            const item = itemMap.get(symbol);
+            return (
+              <div
+                className={`watchlist-current-item ${draggedSymbol === symbol ? "dragging" : ""}`}
+                draggable={!isSaving}
+                key={symbol}
+                onDragStart={() => onSetDraggedSymbol(symbol)}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={() => {
+                  if (draggedSymbol) {
+                    void onReorder(draggedSymbol, symbol);
+                  }
+                  onSetDraggedSymbol(null);
+                }}
+                onDragEnd={() => onSetDraggedSymbol(null)}
+              >
+                <span className="watchlist-symbol-dot" aria-hidden="true" />
+                <span className="watchlist-current-main">
+                  <strong>{symbol}</strong>
+                  <small>{item?.name ?? symbol}</small>
+                </span>
+                <div className="watchlist-current-actions">
+                  <button type="button" onClick={() => void onMove(symbol, -1)} disabled={isSaving || index === 0} aria-label={`Move ${symbol} up`}>Up</button>
+                  <button type="button" onClick={() => void onMove(symbol, 1)} disabled={isSaving || index === symbols.length - 1} aria-label={`Move ${symbol} down`}>Down</button>
+                  <button type="button" onClick={() => void onRemove(symbol)} disabled={isSaving} aria-label={`Delete ${symbol}`}>Delete</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <form className="watchlist-search-form" onSubmit={submitDraft}>
+          <label>
+            <span>Add symbol</span>
+            <input
+              aria-label="Search watchlist symbol"
+              autoComplete="off"
+              disabled={!canAdd || isSaving}
+              placeholder={canAdd ? "Search symbol or company" : "Watchlist is full"}
+              value={draft}
+              onChange={(event) => onDraftChange(event.target.value)}
+            />
+          </label>
+        </form>
+        <div className="security-search-panel watchlist-search-panel">
+          {isSearching ? <p className="form-helper">Searching securities...</p> : null}
+          {searchResults.length > 0 ? (
+            <div className="security-search-results" role="listbox" aria-label="Watchlist symbol matches">
+              {searchResults.map((result) => {
+                const isAdded = symbols.includes(result.symbol);
+                return (
+                  <button
+                    aria-label={`Add ${securityResultLabel(result)}`}
+                    className="security-search-result-row"
+                    type="button"
+                    role="option"
+                    aria-selected={isAdded}
+                    disabled={!canAdd || isAdded || isSaving}
+                    key={result.symbol}
+                    onClick={() => void onAddSymbol(result.symbol)}
+                  >
+                    <span className="security-search-avatar" aria-hidden="true">{securityAvatarLabel(result.symbol)}</span>
+                    <span className="security-search-main">
+                      <strong className="security-search-symbol">{result.symbol}</strong>
+                      <span className="security-search-name">{result.name}</span>
+                    </span>
+                    <span className="security-search-exchange">{formatExchange(result.exchange)}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }
@@ -606,14 +866,9 @@ function formatChangeAmount(value?: number | null) {
   return `${sign}${formatMarketNumber(value)}`;
 }
 
-function formatParentheticalChangeAmount(value?: number | null) {
-  const amount = formatChangeAmount(value);
-  return amount ? `(${amount})` : "";
-}
-
 function formatSignedPercent(value: number) {
   const sign = value >= 0 ? "+" : "";
-  return `${sign}${value.toFixed(2)}%`;
+  return `${sign}${value.toFixed(1)}%`;
 }
 
 function formatWatchlistMeta(item: WatchlistItem) {
@@ -633,6 +888,53 @@ function watchlistDisplayName(item: WatchlistItem) {
   return indexNames[item.symbol] ?? item.name ?? item.symbol;
 }
 
+function watchlistSecurityName(item: WatchlistItem) {
+  const name = item.name?.trim();
+  return name && name !== item.symbol ? name : watchlistDisplayName(item);
+}
+
+function watchlistExchangeLabel(symbol: string) {
+  const upper = symbol.toUpperCase();
+  const explicit: Record<string, string> = {
+    "DIA": "NYSE Arca",
+    "SPY": "NYSE Arca",
+    "IWM": "NYSE Arca",
+    "QQQ": "Nasdaq",
+    "MU": "Nasdaq",
+    "^IXIC": "Nasdaq",
+    "^GSPTSE": "TSX",
+    "XIU.TO": "TSX"
+  };
+  if (explicit[upper]) {
+    return explicit[upper];
+  }
+  if (upper.endsWith(".TO")) {
+    return "TSX";
+  }
+  if (upper.endsWith(".NE")) {
+    return "NEO";
+  }
+  if (upper.endsWith(".HK")) {
+    return "HKEX";
+  }
+  if (upper.endsWith(".SS")) {
+    return "SSE";
+  }
+  if (upper.endsWith(".SZ")) {
+    return "SZSE";
+  }
+  if (upper.endsWith(".T")) {
+    return "TSE";
+  }
+  if (upper.endsWith(".KS")) {
+    return "KRX";
+  }
+  if (upper.startsWith("^")) {
+    return "Index";
+  }
+  return "Market";
+}
+
 function formatWatchlistTime(value?: string | null) {
   if (!value) {
     return "";
@@ -648,39 +950,130 @@ function formatWatchlistTime(value?: string | null) {
   }).format(date);
 }
 
-function buildSparklineChart(values?: number[], previousClose?: number | null) {
-  const width = 140;
-  const height = 42;
-  const verticalPadding = 4;
-  const points = values?.filter((value) => Number.isFinite(value)) ?? [];
+type SparklineInputPoint = number | { time?: string | null; price?: number | null };
+type NormalizedSparklinePoint = { minutesAfterOpen: number | null; price: number; time: string | null };
+
+function buildSparklineChart(values?: SparklineInputPoint[], previousClose?: number | null) {
+  const width = 160;
+  const height = 58;
+  const baselineY = 48;
+  const points = normalizeSparklinePoints(values);
   if (points.length < 2) {
+    const fallbackPoints = `0,${baselineY} ${roundPoint(width / 3)},${baselineY} ${roundPoint((width / 3) * 2)},${baselineY} ${width},${baselineY}`;
     return {
-      points: `0,${height / 2} ${roundPoint(width / 3)},${height / 2} ${roundPoint((width / 3) * 2)},${height / 2} ${width},${height / 2}`,
-      previousCloseY: null
+      areaPoints: `0,${baselineY} ${width},${baselineY} ${width},${height} 0,${height}`,
+      points: fallbackPoints,
+      previousCloseY: null,
+      endpoint: { x: width.toString(), y: baselineY.toString() },
+      progressPct: 100,
+      endLabel: "4:00 PM"
     };
   }
+  const prices = points.map((point) => point.price);
   const hasPreviousClose = previousClose != null && Number.isFinite(previousClose);
-  const scalePoints = hasPreviousClose ? [...points, previousClose] : points;
+  const scalePoints = hasPreviousClose ? [...prices, previousClose] : prices;
   const min = Math.min(...scalePoints);
   const max = Math.max(...scalePoints);
   const range = max - min;
   if (range === 0) {
+    const chartPoints = points.map((point, index) => `${xForPoint(point, index, points.length)},${baselineY}`);
+    const endpointX = xForPoint(points[points.length - 1], points.length - 1, points.length);
     return {
-      points: points.map((_, index) => `${roundPoint((index / Math.max(points.length - 1, 1)) * width)},${height / 2}`).join(" "),
-      previousCloseY: hasPreviousClose ? roundPoint(height / 2) : null
+      areaPoints: `${chartPoints.join(" ")} ${endpointX},${height} 0,${height}`,
+      points: chartPoints.join(" "),
+      previousCloseY: hasPreviousClose ? roundPoint(baselineY) : null,
+      endpoint: { x: endpointX, y: roundPoint(baselineY) },
+      progressPct: marketSessionProgressPct(points),
+      endLabel: marketSessionEndLabel(points)
     };
   }
-  const drawableHeight = height - verticalPadding * 2;
-  const yForValue = (value: number) => roundPoint(height - verticalPadding - ((value - min) / range) * drawableHeight);
-  return {
-    points: points
-      .map((value, index) => {
-        const x = (index / Math.max(points.length - 1, 1)) * width;
-        return `${roundPoint(x)},${yForValue(value)}`;
-      })
-      .join(" "),
-    previousCloseY: hasPreviousClose ? yForValue(previousClose) : null
+  const drawableHeight = 36;
+  const yForValue = (value: number) => roundPoint(baselineY - ((value - min) / range) * drawableHeight);
+  const chartPoints = points.map((point, index) => {
+    const x = xForPoint(point, index, points.length);
+    return `${x},${yForValue(point.price)}`;
+  });
+  const endpoint = {
+    x: xForPoint(points[points.length - 1], points.length - 1, points.length),
+    y: yForValue(points[points.length - 1].price)
   };
+  return {
+    areaPoints: `${chartPoints.join(" ")} ${endpoint.x},${height} 0,${height}`,
+    points: chartPoints.join(" "),
+    previousCloseY: hasPreviousClose ? yForValue(previousClose) : null,
+    endpoint,
+    progressPct: marketSessionProgressPct(points),
+    endLabel: marketSessionEndLabel(points)
+  };
+}
+
+function normalizeSparklinePoints(values?: SparklineInputPoint[]) {
+  return (values ?? []).flatMap((point): NormalizedSparklinePoint[] => {
+    if (typeof point === "number") {
+      return Number.isFinite(point) && point > 0 ? [{ minutesAfterOpen: null, price: point, time: null }] : [];
+    }
+    const price = Number(point.price);
+    if (!Number.isFinite(price) || price <= 0) {
+      return [];
+    }
+    const time = point.time ?? null;
+    return [{ minutesAfterOpen: marketMinutesAfterOpen(time), price, time }];
+  });
+}
+
+function xForPoint(point: NormalizedSparklinePoint, index: number, pointCount: number) {
+  if (point.minutesAfterOpen != null) {
+    return roundPoint((point.minutesAfterOpen / MARKET_SESSION_MINUTES) * 160);
+  }
+  return xForIndex(index, pointCount);
+}
+
+function xForIndex(index: number, pointCount: number) {
+  const width = 160;
+  const denominator = Math.max(MARKET_SESSION_INTERVALS, pointCount - 1, 1);
+  return roundPoint((index / denominator) * width);
+}
+
+function marketSessionProgressPct(points: NormalizedSparklinePoint[]) {
+  const lastPoint = points[points.length - 1];
+  if (lastPoint?.minutesAfterOpen != null) {
+    return Math.min(100, Math.max(0, (lastPoint.minutesAfterOpen / MARKET_SESSION_MINUTES) * 100));
+  }
+  return Math.min(100, Math.max(0, ((Math.max(points.length, 1) - 1) / MARKET_SESSION_INTERVALS) * 100));
+}
+
+function marketSessionEndLabel(points: NormalizedSparklinePoint[]) {
+  const lastPoint = points[points.length - 1];
+  const minutesAfterOpen = lastPoint?.minutesAfterOpen ?? Math.min(MARKET_SESSION_MINUTES, Math.max(0, (Math.max(points.length, 1) - 1) * 5));
+  return marketSessionLabel(minutesAfterOpen);
+}
+
+function marketMinutesAfterOpen(value?: string | null) {
+  if (!value) {
+    return null;
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  const parts = new Intl.DateTimeFormat("en-US", {
+    hour: "2-digit",
+    hourCycle: "h23",
+    minute: "2-digit",
+    timeZone: "America/Toronto"
+  }).formatToParts(date);
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? 0);
+  const minute = Number(parts.find((part) => part.type === "minute")?.value ?? 0);
+  return Math.min(MARKET_SESSION_MINUTES, Math.max(0, hour * 60 + minute - MARKET_OPEN_MINUTES));
+}
+
+function marketSessionLabel(minutesAfterOpen: number) {
+  const totalMinutes = MARKET_OPEN_MINUTES + Math.min(MARKET_SESSION_MINUTES, Math.max(0, minutesAfterOpen));
+  const hour24 = Math.floor(totalMinutes / 60);
+  const minute = totalMinutes % 60;
+  const hour12 = hour24 > 12 ? hour24 - 12 : hour24;
+  const suffix = hour24 >= 12 ? "PM" : "AM";
+  return `${hour12}:${String(minute).padStart(2, "0")} ${suffix}`;
 }
 
 function roundPoint(value: number) {

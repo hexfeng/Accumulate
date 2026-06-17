@@ -14,7 +14,7 @@ from app.domain.forecast import build_cashflow_forecast
 from app.domain.holdings_aware_net_worth import build_holdings_aware_net_worth
 from app.domain.net_worth import build_net_worth_history
 from app.domain.recurring import detect_recurring_items
-from app.domain.schemas import Account, AccountCreateRequest, AccountDeleteResponse, AccountUpdateRequest, BudgetSettings, CsvTransactionRow, DashboardSnapshot, Holding, HoldingDeleteResponse, HoldingRequest, MarketQuote, NetWorthHistory, PortfolioSnapshot, QuoteRefreshResponse, SecuritySearchResult, SimpleFinConnectRequest, SimpleFinStatus, StatementImportResponse, Transaction, WatchlistItem, WatchlistResponse, WatchlistSymbolsRequest, WatchlistSymbolsResponse
+from app.domain.schemas import Account, AccountCreateRequest, AccountDeleteResponse, AccountUpdateRequest, BudgetSettings, CsvTransactionRow, DashboardSnapshot, Holding, HoldingDeleteResponse, HoldingRequest, IntradayPricePoint, MarketQuote, NetWorthHistory, PortfolioSnapshot, QuoteRefreshResponse, SecuritySearchResult, SimpleFinConnectRequest, SimpleFinStatus, StatementImportResponse, Transaction, WatchlistItem, WatchlistResponse, WatchlistSymbolsRequest, WatchlistSymbolsResponse
 from app.domain.statement_import import extract_statement_text, parse_statement_text
 from app.db_store import DatabaseStore
 from app.store import LocalStore, AccountConflictError, AccountNotFoundError
@@ -409,11 +409,31 @@ def _watchlist_item(
         return item
 
 
-def _watchlist_sparkline(symbol: str, quote_service: YahooFinanceQuoteService) -> list[float]:
+def _watchlist_sparkline(symbol: str, quote_service: YahooFinanceQuoteService) -> list[IntradayPricePoint]:
     try:
-        return [round(float(price), 4) for price in quote_service.get_intraday_prices(symbol)]
+        points: list[IntradayPricePoint] = []
+        for point in quote_service.get_intraday_prices(symbol):
+            normalized = _intraday_price_point(point)
+            if normalized is not None:
+                points.append(normalized)
+        return points
     except (AttributeError, MarketDataError, RuntimeError, ValidationError, TypeError, ValueError):
         return []
+
+
+def _intraday_price_point(point: object) -> IntradayPricePoint | None:
+    if isinstance(point, IntradayPricePoint):
+        return point if point.price > 0 else None
+    if isinstance(point, dict):
+        raw_price = point.get("price") or point.get("close") or point.get("Close")
+        raw_time = point.get("time") or point.get("timestamp") or point.get("date")
+    else:
+        raw_price = point
+        raw_time = None
+    price = round(float(raw_price), 4)
+    if price <= 0:
+        return None
+    return IntradayPricePoint(time=str(raw_time) if raw_time else None, price=price)
 
 
 def _parse_month(month: str | None) -> date | None:
