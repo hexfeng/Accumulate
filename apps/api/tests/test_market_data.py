@@ -63,3 +63,20 @@ def test_search_uses_symbol_catalog_when_yahoo_search_is_sparse(monkeypatch):
     results = YahooFinanceQuoteService().search("mu", max_results=10)
 
     assert [result.symbol for result in results] == ["MU", "MU.NE", "MUU"]
+
+
+def test_search_falls_back_to_global_market_symbols(monkeypatch):
+    class EmptyYahooSearch:
+        def __init__(self, _query, **_kwargs):
+            self.quotes = []
+
+    monkeypatch.setitem(sys.modules, "yfinance", SimpleNamespace(Search=EmptyYahooSearch))
+    monkeypatch.setattr("app.integrations.market_data._search_symbol_catalog", lambda _query, _max_results: [])
+
+    symbols = {result.symbol for result in YahooFinanceQuoteService().search("samsung", max_results=10)}
+    symbols.update(result.symbol for result in YahooFinanceQuoteService().search("600519", max_results=10))
+    symbols.update(result.symbol for result in YahooFinanceQuoteService().search("tencent", max_results=10))
+    symbols.update(result.symbol for result in YahooFinanceQuoteService().search("asml", max_results=10))
+    symbols.update(result.symbol for result in YahooFinanceQuoteService().search("nikkei", max_results=10))
+
+    assert {"005930.KS", "600519.SS", "0700.HK", "ASML.AS", "^N225"}.issubset(symbols)

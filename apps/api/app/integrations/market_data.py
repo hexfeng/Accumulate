@@ -3,9 +3,9 @@ from io import StringIO
 from datetime import UTC, datetime
 from typing import Any
 from urllib.error import URLError
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
-from app.domain.schemas import MarketQuote, SecuritySearchResult
+from app.domain.schemas import IntradayPricePoint, MarketQuote, SecuritySearchResult
 
 
 class MarketDataError(RuntimeError):
@@ -23,12 +23,41 @@ _EXCHANGE_NAMES = {
     "V": "IEX",
     "Z": "Cboe BZX",
 }
+_GLOBAL_SEARCH_SUFFIXES = (".TO", ".V", ".NE", ".CN", ".HK", ".SS", ".SZ", ".T", ".KS", ".AS", ".L", ".PA", ".DE", ".MI", ".SW", ".ST")
+_GLOBAL_SYMBOL_FALLBACKS = [
+    ("AAPL", "Apple Inc.", "EQUITY", "Nasdaq", "USD"),
+    ("MSFT", "Microsoft Corporation", "EQUITY", "Nasdaq", "USD"),
+    ("SPY", "SPDR S&P 500 ETF Trust", "ETF", "NYSE Arca", "USD"),
+    ("QQQ", "Invesco QQQ Trust", "ETF", "Nasdaq", "USD"),
+    ("VFV.TO", "Vanguard S&P 500 Index ETF", "ETF", "Toronto", "CAD"),
+    ("XIU.TO", "iShares S&P/TSX 60 Index ETF", "ETF", "Toronto", "CAD"),
+    ("SHOP.TO", "Shopify Inc.", "EQUITY", "Toronto", "CAD"),
+    ("0700.HK", "Tencent Holdings Limited", "EQUITY", "Hong Kong", "HKD"),
+    ("9988.HK", "Alibaba Group Holding Limited", "EQUITY", "Hong Kong", "HKD"),
+    ("600519.SS", "Kweichow Moutai Co., Ltd.", "EQUITY", "Shanghai", "CNY"),
+    ("000001.SZ", "Ping An Bank Co., Ltd.", "EQUITY", "Shenzhen", "CNY"),
+    ("7203.T", "Toyota Motor Corporation", "EQUITY", "Tokyo", "JPY"),
+    ("6758.T", "Sony Group Corporation", "EQUITY", "Tokyo", "JPY"),
+    ("005930.KS", "Samsung Electronics Co., Ltd.", "EQUITY", "Korea", "KRW"),
+    ("000660.KS", "SK hynix Inc.", "EQUITY", "Korea", "KRW"),
+    ("ASML.AS", "ASML Holding N.V.", "EQUITY", "Amsterdam", "EUR"),
+    ("NESN.SW", "Nestle S.A.", "EQUITY", "SIX", "CHF"),
+    ("SIE.DE", "Siemens Aktiengesellschaft", "EQUITY", "XETRA", "EUR"),
+    ("MC.PA", "LVMH Moet Hennessy Louis Vuitton SE", "EQUITY", "Paris", "EUR"),
+    ("^GSPC", "S&P 500", "INDEX", "SNP", "USD"),
+    ("^IXIC", "Nasdaq Composite", "INDEX", "Nasdaq", "USD"),
+    ("^GSPTSE", "S&P/TSX Composite Index", "INDEX", "Toronto", "CAD"),
+    ("^HSI", "Hang Seng Index", "INDEX", "Hong Kong", "HKD"),
+    ("^N225", "Nikkei 225", "INDEX", "Tokyo", "JPY"),
+    ("^KS11", "KOSPI Composite Index", "INDEX", "Korea", "KRW"),
+    ("^STOXX50E", "EURO STOXX 50", "INDEX", "Zurich", "EUR"),
+]
 
 
 class YahooFinanceQuoteService:
     provider = "yfinance"
 
-    quote_types = {"EQUITY", "ETF"}
+    quote_types = {"EQUITY", "ETF", "INDEX"}
 
     def search(self, query: str, max_results: int = 10) -> list[SecuritySearchResult]:
         normalized_query = query.strip().upper()
@@ -49,13 +78,16 @@ class YahooFinanceQuoteService:
         for catalog_result in _search_symbol_catalog(normalized_query, max_results * 3):
             result = SecuritySearchResult.model_validate(catalog_result)
             results_by_symbol.setdefault(result.symbol, result)
+        if len(normalized_query) >= 2:
+            for fallback_result in _search_global_fallbacks(normalized_query, max_results * 3):
+                results_by_symbol.setdefault(fallback_result.symbol, fallback_result)
 
         prefix_candidates = [
             result for result in results_by_symbol.values()
             if "." not in result.symbol and result.symbol.startswith(normalized_query) and 2 <= len(result.symbol) <= 5
         ][:6]
         for result in prefix_candidates:
-            for suffix in (".NE",):
+            for suffix in _GLOBAL_SEARCH_SUFFIXES:
                 suffix_symbol = f"{result.symbol}{suffix}"
                 if suffix_symbol in results_by_symbol:
                     continue
@@ -116,7 +148,7 @@ class YahooFinanceQuoteService:
             as_of=datetime.now(UTC).isoformat(),
         )
 
-    def get_intraday_prices(self, symbol: str) -> list[float]:
+    def get_intraday_prices(self, symbol: str) -> list[IntradayPricePoint]:
         normalized_symbol = symbol.strip().upper()
         if not normalized_symbol:
             return []
@@ -127,11 +159,17 @@ class YahooFinanceQuoteService:
 
         try:
             history = yf.Ticker(normalized_symbol).history(period="1d", interval="5m")
-            closes = history["Close"].dropna().tolist()
+            closes = history["Close"].dropna()
         except Exception as error:
             raise MarketDataError(f"Could not fetch intraday prices for {normalized_symbol}.") from error
 
-        return [round(float(price), 4) for price in closes if isinstance(price, int | float) and price > 0]
+        points: list[IntradayPricePoint] = []
+        for timestamp, price in closes.items():
+            value = float(price)
+            if value <= 0:
+                continue
+            points.append(IntradayPricePoint(time=timestamp.isoformat(), price=round(value, 4)))
+        return points
 
 
 def _safe_info(ticker: Any) -> dict[str, Any]:
@@ -168,6 +206,22 @@ def _search_yfinance(yf: Any, query: str, max_results: int, normalized_query: st
 def _search_symbol_catalog(normalized_query: str, max_results: int) -> list[SecuritySearchResult]:
     catalog = _load_symbol_catalog()
     matches = [result for result in catalog if _matches_search(result, normalized_query)]
+    return sorted(matches, key=lambda result: _search_rank(result, normalized_query))[:max_results]
+
+
+def _search_global_fallbacks(normalized_query: str, max_results: int) -> list[SecuritySearchResult]:
+    matches = [
+        SecuritySearchResult(
+            symbol=symbol,
+            name=name,
+            quote_type=quote_type,
+            exchange=exchange,
+            currency=currency,
+            provider="global-fallback",
+        )
+        for symbol, name, quote_type, exchange, currency in _GLOBAL_SYMBOL_FALLBACKS
+        if normalized_query in symbol.upper() or normalized_query in name.upper()
+    ]
     return sorted(matches, key=lambda result: _search_rank(result, normalized_query))[:max_results]
 
 
@@ -228,7 +282,8 @@ def _read_other_listed() -> list[SecuritySearchResult]:
 
 
 def _read_pipe_delimited_url(url: str) -> list[dict[str, str]]:
-    with urlopen(url, timeout=8) as response:
+    request = Request(url, headers={"User-Agent": "FinSight/0.1"})
+    with urlopen(request, timeout=8) as response:
         content = response.read().decode("utf-8", errors="replace")
     lines = [line for line in content.splitlines() if line and not line.startswith("File Creation Time")]
     return list(csv.DictReader(StringIO("\n".join(lines)), delimiter="|"))
@@ -285,4 +340,20 @@ def _first_number(values: dict[str, Any], *keys: str) -> float | None:
 def _guess_currency(symbol: str) -> str:
     if symbol.endswith(".TO") or symbol.endswith(".V") or symbol.endswith(".NE") or symbol.endswith(".CN"):
         return "CAD"
+    if symbol.endswith(".HK"):
+        return "HKD"
+    if symbol.endswith(".SS") or symbol.endswith(".SZ"):
+        return "CNY"
+    if symbol.endswith(".T"):
+        return "JPY"
+    if symbol.endswith(".KS"):
+        return "KRW"
+    if symbol.endswith(".AS") or symbol.endswith(".PA") or symbol.endswith(".DE") or symbol.endswith(".MI"):
+        return "EUR"
+    if symbol.endswith(".L"):
+        return "GBP"
+    if symbol.endswith(".SW"):
+        return "CHF"
+    if symbol.endswith(".ST"):
+        return "SEK"
     return "USD"

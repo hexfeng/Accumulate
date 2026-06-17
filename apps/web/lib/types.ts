@@ -132,8 +132,13 @@ export type WatchlistItem = {
   change_pct?: number | null;
   provider?: string | null;
   as_of?: string | null;
-  sparkline?: number[];
+  sparkline?: Array<number | WatchlistSparklinePoint>;
   error?: string | null;
+};
+
+export type WatchlistSparklinePoint = {
+  time?: string | null;
+  price: number;
 };
 
 export type WatchlistResponse = {

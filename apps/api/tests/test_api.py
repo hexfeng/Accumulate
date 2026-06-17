@@ -609,9 +609,34 @@ def test_watchlist_returns_default_symbols_with_quotes_and_symbol_errors():
     assert data["items"][0]["change_pct"] == 1.25
     assert data["items"][0]["provider"] == "test"
     assert data["items"][0]["as_of"] == "2026-06-12T13:00:00Z"
-    assert data["items"][0]["sparkline"] == [100, 101.5, 103]
+    assert data["items"][0]["sparkline"] == [
+        {"time": None, "price": 100},
+        {"time": None, "price": 101.5},
+        {"time": None, "price": 103},
+    ]
     assert data["items"][3]["price"] is None
     assert data["items"][3]["error"] == "Quote unavailable"
+
+
+def test_watchlist_returns_timestamped_intraday_prices():
+    class SparseIntradayQuoteService(FakeQuoteService):
+        def get_intraday_prices(self, symbol: str):
+            return [
+                {"time": "2026-06-16T09:30:00-04:00", "price": 48.06},
+                {"time": "2026-06-16T10:00:00-04:00", "price": 47.80},
+                {"time": "2026-06-16T15:55:00-04:00", "price": 45.32},
+            ]
+
+    client = TestClient(create_app(store=LocalStore(), quote_service=SparseIntradayQuoteService()))
+
+    response = client.get("/api/watchlist")
+
+    assert response.status_code == 200
+    assert response.json()["items"][0]["sparkline"] == [
+        {"time": "2026-06-16T09:30:00-04:00", "price": 48.06},
+        {"time": "2026-06-16T10:00:00-04:00", "price": 47.8},
+        {"time": "2026-06-16T15:55:00-04:00", "price": 45.32},
+    ]
 
 
 def test_watchlist_reuses_short_cache_for_repeated_page_loads():

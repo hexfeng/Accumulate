@@ -78,6 +78,11 @@ class MarketQuote(BaseModel):
     as_of: str
 
 
+class IntradayPricePoint(BaseModel):
+    time: str | None = None
+    price: float
+
+
 class WatchlistItem(BaseModel):
     symbol: str
     name: str
@@ -85,7 +90,7 @@ class WatchlistItem(BaseModel):
     currency: str = "CAD"
     change_amount: float | None = None
     change_pct: float | None = None
-    sparkline: list[float] = Field(default_factory=list)
+    sparkline: list[IntradayPricePoint] = Field(default_factory=list)
     provider: str | None = None
     as_of: str | None = None
     error: str | None = None
